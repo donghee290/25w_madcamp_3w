@@ -43,6 +43,9 @@ public class PlayerMotor : MonoBehaviour
     public float CurrentForwardSpeed => forwardSpeed;
     public bool IsRollingNow => rollActive;
 
+    public float CurrentRunIntensity => (input != null) ? input.RunIntensity : 1f;
+
+
     // 상태 제어
     private bool jumpLock;
     private bool rollActive;
