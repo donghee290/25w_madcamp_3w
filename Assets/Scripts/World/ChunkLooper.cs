@@ -11,31 +11,42 @@ public class ChunkLooper : MonoBehaviour
     public Transform backdropsParent;
     public Transform spawnPoint;
 
+    [Header("Progress")]
+    [Tooltip("진행 기준(보통 Player). 이 Transform의 전진량(delta)로 무한생성 판단")]
+    public Transform progressRoot;
+
+    [Tooltip("progressRoot가 +Z로 전진하면 체크 해제, -Z로 전진/월드가 -Z로 흐르면 체크")]
+    public bool progressIsNegativeZ = false;
+
     [Header("Runtime spawning")]
-    public Transform player;
     public int chunksAhead = 12;
     public int chunksBehind = 3;
 
     [Header("Chunk prefabs (NO FLOOR/CEILING inside)")]
     public GameObject corridorChunkBase;
-    public GameObject corridorChunkRandom; // Sub는 제외
+    public GameObject corridorChunkRandom;
 
-    [Header("Floor/Ceiling prefab")]
+    [Header("Floor prefab")]
     public GameObject floorPrefab;
+
+    [Header("Ceiling prefab")]
     public GameObject ceilingPrefab;
 
-    [Tooltip("Ceiling 높이 보정(월드 Y). 흰 벽 아래로 숨기고 싶으면 이 값으로 조절")]
-    public float ceilingYOffset = 2.8f;
+    [Tooltip("Ceiling을 올리는 높이 (spawnPoint 기준)")]
+    public float ceilingYOffset = 4.5f;
 
-    [Tooltip("Ceiling을 청크 안쪽으로 살짝 당김(+Z). backWall과 겹치거나 가려지면 0.01~0.03 추천")]
-    public float ceilingZOffset = 0.02f;
+    [Tooltip("Ceiling을 진행방향으로 살짝 밀기(틈 방지). 보통 0~0.05")]
+    public float ceilingForwardOffset = 0.02f;
+
+    [Tooltip("Ceiling 프리팹 회전을 강제로 X=180 뒤집기(Plane 한쪽면 이슈 대응)")]
+    public bool forceCeilingFlipX180 = true;
 
     [Header("BackWall (opaque wall)")]
     public GameObject backWallPrefab;
     public bool spawnBackWall = true;
 
-    [Tooltip("BackWall을 뒤로 살짝 밀기(-Z). 천장/벽 가림 이슈 있으면 -0.02~-0.05 추천")]
-    public float backWallZOffset = -0.03f;
+    [Tooltip("BackWall을 진행방향으로 살짝 당기거나 밀기(틈 방지). 보통 -0.03 정도")]
+    public float backWallForwardOffset = -0.03f;
 
     [Header("Weights (higher = more frequent)")]
     public int wBase = 4;
@@ -49,7 +60,7 @@ public class ChunkLooper : MonoBehaviour
     public float propsChancePerSide = 0.85f;
 
     [Range(0f, 1f)]
-    public float lockerGroupChancePerSide = 0.55f; // 락커 줄이기(기본값만)
+    public float lockerGroupChancePerSide = 0.55f;
 
     public int singlePropsMin = 0;
     public int singlePropsMax = 2;
@@ -76,14 +87,15 @@ public class ChunkLooper : MonoBehaviour
     [Tooltip("락커 런 구간 마진(싱글과 겹침 방지)")]
     public float lockerRunMargin = 0.3f;
 
+    [Header("Chunk size")]
+    [Tooltip("청크 길이(진행방향). 실제 생성 간격. 반드시 실제 청크 1개 길이에 맞추세요.")]
+    public float chunkLengthZ = 5.336f;
+
     [Header("Debug")]
     public bool debugLog = false;
 
-    [Header("Chunk size")]
-    [Tooltip("청크 길이(Z). 실제 생성 간격. 반드시 실제 청크 1개 길이에 맞추세요.")]
-    public float chunkLengthZ = 5.336f;
-
-    private float _nextZ;
+    private float _nextZ;                 // 월드(진행축) 기준 다음 생성 위치
+    private float _progressZ0;            // progressRoot 시작값(델타 기준)
     private readonly List<Spawned> _spawned = new();
 
     [Serializable]
@@ -103,9 +115,16 @@ public class ChunkLooper : MonoBehaviour
         if (ceilingsParent == null) ceilingsParent = chunksParent;
         if (backdropsParent == null) backdropsParent = chunksParent;
         if (spawnPoint == null) spawnPoint = transform;
-        if (player == null) player = GameObject.FindWithTag("Player")?.transform;
 
-        _nextZ = spawnPoint.position.z;
+        if (progressRoot == null)
+        {
+            // Player 태그가 있으면 자동 연결
+            var p = GameObject.FindWithTag("Player");
+            if (p != null) progressRoot = p.transform;
+        }
+
+        _progressZ0 = GetRawProgressZ();
+        _nextZ = GetSpawnBaseZ(); // spawnPoint 기준 시작
 
         // 안전구간: 처음 3개는 Base로 고정
         for (int i = 0; i < 3; i++) SpawnOne(forceBase: true);
@@ -115,28 +134,53 @@ public class ChunkLooper : MonoBehaviour
 
     void Update()
     {
-        if (player == null) return;
-
         FillAhead(force: false);
         CleanupBehind();
     }
 
+    float GetSpawnBaseZ()
+    {
+        // 진행축을 spawnPoint.forward로 통일
+        // 하지만 Z값만 쓰는 로직이므로, 현재는 월드 z 축을 "진행 스칼라"로 사용
+        // 씬이 회전되어도 안전하게 하려면 '스칼라 진행값'만 사용하도록 구성
+        return spawnPoint.position.z;
+    }
+
+    float GetRawProgressZ()
+    {
+        if (progressRoot == null) return 0f;
+        return progressRoot.position.z;
+    }
+
+    // 시작 대비 진행량(델타). 이 값이 커질수록 앞으로 간 것.
+    float GetProgressDelta()
+    {
+        float raw = GetRawProgressZ();
+        float delta = raw - _progressZ0;
+        return progressIsNegativeZ ? -delta : delta;
+    }
+
     void FillAhead(bool force)
     {
-        float pz = player.position.z;
-        float targetZ = pz + chunksAhead * chunkLengthZ;
+        float pz = GetProgressDelta();
+
+        // targetZ는 "spawnPoint 기준 시작 + 진행량 + 앞쪽 확보"
+        float targetZ = GetSpawnBaseZ() + pz + chunksAhead * chunkLengthZ;
 
         while (_nextZ < targetZ)
         {
             SpawnOne(forceBase: false);
-            if (!force && _spawned.Count > 400) break; // 안전장치
+            if (!force && _spawned.Count > 400) break;
         }
+
+        if (debugLog)
+            Debug.Log($"[FillAhead] pz={pz:F2} targetZ={targetZ:F2} nextZ={_nextZ:F2} spawned={_spawned.Count}");
     }
 
     void CleanupBehind()
     {
-        float pz = player.position.z;
-        float killZ = pz - (chunkLengthZ * chunksBehind);
+        float pz = GetProgressDelta();
+        float killZ = GetSpawnBaseZ() + pz - (chunkLengthZ * chunksBehind);
 
         int i = 0;
         while (i < _spawned.Count)
@@ -161,34 +205,65 @@ public class ChunkLooper : MonoBehaviour
 
         float z = _nextZ;
 
-        // 청크는 spawnPoint 기준
-        var chunkPos = new Vector3(spawnPoint.position.x, spawnPoint.position.y, z);
-        var chunkGo = Instantiate(prefab, chunkPos, prefab.transform.rotation, chunksParent);
+        // 모든 배치는 spawnPoint 기준으로, 진행축은 월드 Z로 쓴다.
+        // (trackRoot 회전/축 꼬임 방지하려면 여기서 forward 기준으로 바꾸는 방식도 가능)
+        var basePos = new Vector3(spawnPoint.position.x, spawnPoint.position.y, z);
 
-        // 바닥: 청크와 같은 zStart (프리팹 스케일로 길이 맞추는 방식 유지)
+        // 청크
+        var chunkGo = Instantiate(prefab, basePos, prefab.transform.rotation, chunksParent);
+
+        // 바닥
         GameObject floorGo = null;
         if (floorPrefab != null)
         {
-            floorGo = Instantiate(floorPrefab, chunkPos, floorPrefab.transform.rotation, floorsParent);
+            floorGo = Instantiate(floorPrefab, basePos, floorPrefab.transform.rotation, floorsParent);
         }
 
-        // 천장: y/z 보정 (backWall이 불투명이라, 천장은 살짝 “청크 안쪽”으로 넣는 게 안전)
-        GameObject ceilGo = null;
+        // 천장
+        GameObject ceilingGo = null;
         if (ceilingPrefab != null)
         {
-            var ceilPos = new Vector3(chunkPos.x, ceilingYOffset, chunkPos.z + ceilingZOffset);
-            ceilGo = Instantiate(ceilingPrefab, ceilPos, ceilingPrefab.transform.rotation, ceilingsParent);
+            // forward 오프셋을 '월드 forward'가 아니라 'spawnPoint forward'로 적용
+            Vector3 fwd = spawnPoint.forward.normalized;
+            if (fwd.sqrMagnitude < 0.5f) fwd = Vector3.forward;
+
+            var cPos = basePos + Vector3.up * ceilingYOffset + fwd * ceilingForwardOffset;
+
+            Quaternion cRot = ceilingPrefab.transform.rotation;
+
+            // Plane/Quad는 한쪽면이라 아래쪽을 보도록 뒤집어야 할 때가 많음
+            if (forceCeilingFlipX180)
+            {
+                var e = cRot.eulerAngles;
+                cRot = Quaternion.Euler(180f, e.y, e.z);
+            }
+
+            ceilingGo = Instantiate(ceilingPrefab, cPos, cRot, ceilingsParent);
+
+            if (debugLog)
+            {
+                var r = ceilingGo.GetComponentInChildren<Renderer>();
+                if (r == null) Debug.LogWarning($"[Ceiling] renderer missing: {ceilingGo.name}");
+                else if (!r.enabled) Debug.LogWarning($"[Ceiling] renderer disabled: {ceilingGo.name}");
+            }
+        }
+        else
+        {
+            if (debugLog) Debug.LogWarning("[SpawnOne] ceilingPrefab is NULL");
         }
 
-        // backWall: 불투명 진짜 벽. 천장 가림/겹침 방지 위해 -Z로 살짝 뒤로
+        // 백월
         GameObject backGo = null;
         if (spawnBackWall && backWallPrefab != null)
         {
-            var backPos = new Vector3(chunkPos.x, chunkPos.y, chunkPos.z + backWallZOffset);
-            backGo = Instantiate(backWallPrefab, backPos, backWallPrefab.transform.rotation, backdropsParent);
+            Vector3 fwd = spawnPoint.forward.normalized;
+            if (fwd.sqrMagnitude < 0.5f) fwd = Vector3.forward;
+
+            var bPos = basePos + fwd * backWallForwardOffset;
+            backGo = Instantiate(backWallPrefab, bPos, backWallPrefab.transform.rotation, backdropsParent);
         }
 
-        // 벽 소품 배치
+        // 소품
         PlaceWallProps(chunkGo);
 
         _spawned.Add(new Spawned
@@ -196,18 +271,20 @@ public class ChunkLooper : MonoBehaviour
             zStart = z,
             chunk = chunkGo,
             floor = floorGo,
-            ceiling = ceilGo,
+            ceiling = ceilingGo,
             backWall = backGo
         });
 
         _nextZ += (chunkLengthZ - seamEps);
+
+        if (debugLog)
+            Debug.Log($"[SpawnOne] zStart={z:F2} nextZ={_nextZ:F2} prefab={prefab.name} ceiling={(ceilingGo ? "Y" : "N")}");
     }
 
     GameObject PickChunkPrefab()
     {
         int a = Mathf.Max(0, wBase);
         int b = Mathf.Max(0, wRandom);
-
         int total = a + b;
         if (total <= 0) total = 1;
 
@@ -217,14 +294,13 @@ public class ChunkLooper : MonoBehaviour
     }
 
     // -------------------------
-    // Props placement (DecorationsSlot 기반: "이름 프리픽스"로만)
+    // Props placement (DecorationsSlot* prefix)
     // -------------------------
 
     void PlaceWallProps(GameObject chunk)
     {
         if (chunk == null) return;
 
-        // DecorationsSlot_L / DecorationsSlot_R 뿐 아니라 DecorationsSlot 로 시작하는 모든 슬롯 수집
         var slots = new List<Transform>(16);
         CollectSlotsByPrefix(chunk.transform, "DecorationsSlot", slots);
 
@@ -236,11 +312,8 @@ public class ChunkLooper : MonoBehaviour
         foreach (var slot in slots)
         {
             if (slot == null) continue;
+            if (UnityEngine.Random.value > propsChancePerSide) continue;
 
-            if (UnityEngine.Random.value > propsChancePerSide)
-                continue;
-
-            // 슬롯 “한쪽 벽” 단위로 겹침 방지 관리
             var usedRanges = new List<Vector2>(8);
 
             bool canLocker = lockerPrefabs != null && lockerPrefabs.Length > 0;
@@ -314,11 +387,9 @@ public class ChunkLooper : MonoBehaviour
             if (prefab == null) continue;
 
             float off = startOffset + (i * lockerStepZ);
-
-            // PropOffset 반영 + slot 기준 부착
             var pos = ApplyPrefabOffsets(slot, prefab, basePos, off);
-            Instantiate(prefab, pos, slot.rotation, slot);
 
+            Instantiate(prefab, pos, slot.rotation, slot);
             spawned++;
         }
 
@@ -355,7 +426,6 @@ public class ChunkLooper : MonoBehaviour
 
             AddRange(usedRanges, aMin, aMax);
 
-            // 여기서도 PropOffset 반영(동바가 말한 “개별 프리팹 y값”이 씹히는 원인 제거)
             var pos = ApplyPrefabOffsets(slot, prefab, basePos, off);
             Instantiate(prefab, pos, slot.rotation, slot);
 
@@ -369,7 +439,6 @@ public class ChunkLooper : MonoBehaviour
     {
         if (root == null) return;
 
-        // DecorationsSlot, DecorationsSlot_L, DecorationsSlot_R, DecorationsSlot_L (1) 전부 포함
         if (root.name.StartsWith(prefix, StringComparison.Ordinal))
             outList.Add(root);
 
