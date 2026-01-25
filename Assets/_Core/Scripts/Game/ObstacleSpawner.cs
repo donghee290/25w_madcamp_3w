@@ -47,8 +47,8 @@ public class ObstacleSpawner : MonoBehaviour
 
     void Update()
     {
-        if (gameManager == null || gameManager.State != GameState.Playing) return;
         if (player == null) return;
+        if (gameManager != null && gameManager.State != GameState.Playing) return;
 
         t += Time.deltaTime;
 
