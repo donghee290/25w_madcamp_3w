@@ -172,9 +172,6 @@ public class ChunkLooper : MonoBehaviour
             SpawnOne(forceBase: false);
             if (!force && _spawned.Count > 400) break;
         }
-
-        if (debugLog)
-            Debug.Log($"[FillAhead] pz={pz:F2} targetZ={targetZ:F2} nextZ={_nextZ:F2} spawned={_spawned.Count}");
     }
 
     void CleanupBehind()

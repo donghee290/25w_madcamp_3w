@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -12,7 +13,6 @@ public class GameManager : MonoBehaviour
     [SerializeField] private float distanceMeters = 0f;
 
     [Header("Refs")]
-    [Tooltip("PlayerMotor¸¦ ¿©±â¿¡ ³ÖÀ¸¸é, GameOver ¶§ ÀÚµ¿À¸·Î ¸ØÃä´Ï´Ù.")]
     public PlayerMotor playerMotor;
 
     public GameState State => state;
@@ -28,14 +28,45 @@ public class GameManager : MonoBehaviour
         }
         I = this;
         DontDestroyOnLoad(gameObject);
+
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    void OnDestroy()
+    {
+        if (I == this)
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+    }
+
+    void Start()
+    {
+        EnsurePlayerMotor();
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        // ì”¬ì´ ë‹¤ì‹œ ë¡œë“œë˜ë©´ ê¸°ì¡´ ë ˆí¼ëŸ°ìŠ¤ê°€ ëŠê¸¸ ìˆ˜ ìˆì–´ì„œ ì¬íƒìƒ‰
+        EnsurePlayerMotor();
+    }
+
+    void EnsurePlayerMotor()
+    {
+        if (playerMotor != null) return;
+
+        playerMotor = FindFirstObjectByType<PlayerMotor>();
+        if (playerMotor == null)
+            Debug.LogWarning("[GameManager] PlayerMotor not found in scene.");
+        else
+            Debug.Log($"[GameManager] PlayerMotor bound: {playerMotor.name}");
     }
 
     void Update()
     {
         if (state != GameState.Playing) return;
+
+        EnsurePlayerMotor();
         if (playerMotor == null) return;
 
-        // "m" ´©Àû: ÇöÀç ÀüÁø ¼Óµµ(m/s) * dt
         distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime;
     }
 
@@ -47,24 +78,15 @@ public class GameManager : MonoBehaviour
         gameOverReason = reason;
 
         if (playerMotor != null)
-        {
-            // °¡Àå °£´Ü: PlayerMotor ²¨¹ö¸®±â
             playerMotor.enabled = false;
-        }
 
         Debug.Log($"[GameManager] GAME OVER: {reason}, distance={distanceMeters:0.0}m");
     }
 
-    // Àç½ÃÀÛ(³ªÁß¿¡ UI ¹öÆ°¿¡ ¿¬°á)
     public void RestartSceneSimple()
     {
-        // °¡Àå ´Ü¼øÇÏ°Ô: ÇöÀç ¾À ´Ù½Ã ·Îµå
-        // (³ªÁß¿¡ SceneManager·Î ±³Ã¼)
-        UnityEngine.SceneManagement.SceneManager.LoadScene(
-            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex
-        );
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
 
-        // ½Ì±ÛÅæÀº À¯ÁöµÇ¹Ç·Î °ª ¸®¼Â
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
@@ -76,6 +98,7 @@ public class GameManager : MonoBehaviour
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
 
+        EnsurePlayerMotor();
         if (playerMotor != null)
             playerMotor.enabled = true;
     }
