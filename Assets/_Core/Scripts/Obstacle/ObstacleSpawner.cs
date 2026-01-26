@@ -8,9 +8,9 @@ public class ObstacleSpawner : MonoBehaviour
     public GameManager gameManager;
 
     [Header("Prefabs (set in Inspector)")]
-    public GameObject deskPrefab;     // Desk (Jump)
+    public GameObject[] jumpPrefabs;     // Desk (Jump)
     public GameObject bannerPrefab;   // Banner (Roll)
-    public GameObject lockerPrefab;   // Locker (Lane move)
+    public GameObject[] movePrefabs;
 
     [Header("Spawn Space")]
     public float spawnZOffset = 35f;
@@ -95,11 +95,32 @@ public class ObstacleSpawner : MonoBehaviour
 
     void SpawnDouble()
     {
+        // 서로 다른 두 레인 선택(-1,0,1)
         int laneA = RandomLane();
         int laneB = laneA;
         while (laneB == laneA) laneB = RandomLane();
 
-        GameObject prefab = RandomObstaclePrefab();
+        // span==1인 프리팹만 뽑기 (최대 N번 시도 후 실패하면 종료)
+        const int maxTries = 20;
+        GameObject prefab = null;
+
+        for (int i = 0; i < maxTries; i++)
+        {
+            var p = RandomObstaclePrefab();
+            if (p == null) continue;
+
+            var m = p.GetComponent<ObstacleMarker>();
+            int span = (m != null) ? Mathf.Clamp(m.laneSpan, 1, 3) : 1;
+
+            if (span == 1)
+            {
+                prefab = p;
+                break;
+            }
+        }
+
+        if (prefab == null) return;
+
         Spawn(prefab, laneA);
         Spawn(prefab, laneB);
     }
@@ -113,33 +134,77 @@ public class ObstacleSpawner : MonoBehaviour
     GameObject RandomObstaclePrefab()
     {
         int r = Random.Range(0, 3);
-        if (r == 0 && deskPrefab != null) return deskPrefab;
-        if (r == 1 && bannerPrefab != null) return bannerPrefab;
-        if (r == 2 && lockerPrefab != null) return lockerPrefab;
 
-        if (deskPrefab != null) return deskPrefab;
+        if (r == 0 && jumpPrefabs != null && jumpPrefabs.Length > 0)
+            return jumpPrefabs[Random.Range(0, jumpPrefabs.Length)];
+
+        if (r == 1 && bannerPrefab != null) return bannerPrefab;
+
+        if (movePrefabs != null && movePrefabs.Length > 0)
+            return movePrefabs[Random.Range(0, movePrefabs.Length)];
+
+        // fallback
+        if (jumpPrefabs != null && jumpPrefabs.Length > 0) return jumpPrefabs[0];
         if (bannerPrefab != null) return bannerPrefab;
-        return lockerPrefab;
+        return null;
+    }
+
+
+    GameObject RandomSingleLaneMovePrefab()
+    {
+        if (movePrefabs == null) return null;
+
+        // span==1만 후보
+        var candidates = new System.Collections.Generic.List<GameObject>();
+        foreach (var p in movePrefabs)
+        {
+            if (p == null) continue;
+            var m = p.GetComponent<ObstacleMarker>();
+            int span = (m != null) ? m.laneSpan : 1;
+            if (span == 1) candidates.Add(p);
+        }
+        if (candidates.Count == 0) return null;
+        return candidates[Random.Range(0, candidates.Count)];
     }
 
     void Spawn(GameObject prefab, int lane)
     {
         if (prefab == null) return;
 
-        float x = lane * laneWidth;
+        var marker = prefab.GetComponent<ObstacleMarker>();
+        int span = (marker != null) ? Mathf.Clamp(marker.laneSpan, 1, 3) : 1;
+
+        // span에 따른 lane/x 결정
+        float x;
+        if (span == 3)
+        {
+            lane = 0;
+            x = 0f;
+        }
+        else if (span == 2)
+        {
+            // (-1,0) 또는 (0,1) 페어만 가능
+            lane = (Random.value < 0.5f) ? -1 : 0;
+            float centerLane = (lane == -1) ? -0.5f : 0.5f;
+            x = centerLane * laneWidth;
+        }
+        else
+        {
+            // span == 1
+            x = lane * laneWidth;
+        }
+
         float z = player.position.z + spawnZOffset;
 
-        // ✅ prefab 종류에 따라 Y를 다르게 준다
-        float y = 0f;
-        if (prefab == deskPrefab) y = deskWorldY;
-        else if (prefab == lockerPrefab) y = lockerWorldY;
-        else if (prefab == bannerPrefab) y = bannerWorldY;
-        else y = 0f; // fallback
+        // 타입 기준으로 Y 결정
+        float y;
+        if (marker != null && marker.type == ObstacleType.Jump) y = deskWorldY;
+        else if (marker != null && marker.type == ObstacleType.Roll) y = bannerWorldY;
+        else y = lockerWorldY;
 
         Vector3 pos = new Vector3(x, y, z);
-
-        GameObject go = Instantiate(prefab, pos, Quaternion.identity);
-        go.name = $"{prefab.name}_lane{lane}_{(int)t}s";
+        GameObject go = Instantiate(prefab, pos, prefab.transform.rotation);
+        go.name = $"{prefab.name}_span{span}_lane{lane}_{(int)t}s";
     }
 
     void CleanupOldObstacles()
