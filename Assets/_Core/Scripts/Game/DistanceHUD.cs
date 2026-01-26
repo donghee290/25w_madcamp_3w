@@ -4,15 +4,15 @@ using TMPro;
 public class DistanceHUD : MonoBehaviour
 {
     [Header("Bind in Inspector")]
-    [SerializeField] private TextMeshProUGUI distanceText; // <-- ÀÌ°Ô ½½·Ô
-    [SerializeField] private TextMeshProUGUI stateText;    // <-- ÀÌ°Ô ½½·Ô
+    [SerializeField] private TextMeshProUGUI distanceText; // <-- ï¿½Ì°ï¿½ ï¿½ï¿½ï¿½ï¿½
+    [SerializeField] private TextMeshProUGUI stateText;    // <-- ï¿½Ì°ï¿½ ï¿½ï¿½ï¿½ï¿½
 
     void Update()
     {
         if (GameManager.I == null) return;
 
         if (distanceText != null)
-            distanceText.text = $"{GameManager.I.DistanceMeters:0} m";
+            distanceText.text = $"{Mathf.FloorToInt(GameManager.I.DistanceMeters)} m";
 
         if (stateText != null)
         {

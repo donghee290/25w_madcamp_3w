@@ -199,12 +199,6 @@ public class ChunkLooper : MonoBehaviour
         // targetZ는 "spawnPoint 기준 시작 + 진행량 + 앞쪽 확보"
         float targetZ = GetSpawnBaseZ() + pz + chunksAhead * chunkLengthZ;
 
-        if (debugLog)
-        {
-            Debug.Log($"[ChunkLooper] ceilingPrefab={(ceilingPrefab ? ceilingPrefab.name : "NULL")} " +
-                      $"sceneValid={(ceilingPrefab != null && ceilingPrefab.scene.IsValid())} this={name}/{GetInstanceID()}");
-        }
-
         while (_nextZ < targetZ)
         {
             SpawnOne(forceBase: false);
@@ -361,9 +355,6 @@ public class ChunkLooper : MonoBehaviour
 
         var slots = new List<Transform>(16);
         CollectSlotsByPrefix(chunk.transform, "DecorationsSlot", slots);
-
-        if (debugLog)
-            Debug.Log($"[Props] chunk={chunk.name} slotsFound={slots.Count}");
 
         if (slots.Count == 0) return;
 

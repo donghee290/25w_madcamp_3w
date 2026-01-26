@@ -9,48 +9,58 @@ public class WallRandomizer : MonoBehaviour
     [Header("Wall variants (prefabs)")]
     public GameObject[] wallVariants;
 
+    [Header("Legacy cleanup")]
+    public bool purgeLegacyChildrenOnAwake = true; // 옛날 Wall_Varient_* 자식만 제거
+
     private GameObject _leftInstance;
     private GameObject _rightInstance;
 
+    void Awake()
+    {
+        if (purgeLegacyChildrenOnAwake)
+            PurgeLegacyChildren();
+
+        // 슬롯 메쉬만 숨기기 (슬롯 GameObject는 끄지 마세요: 자식/기준점으로 쓰일 수 있음)
+        var lr = leftSlot ? leftSlot.GetComponent<MeshRenderer>() : null;
+        if (lr) lr.enabled = false;
+
+        var rr = rightSlot ? rightSlot.GetComponent<MeshRenderer>() : null;
+        if (rr) rr.enabled = false;
+    }
+
     void OnEnable()
     {
-        // Fix: Disable the mesh of the slot itself so we don't see the placeholder wall (Pink Wall fix)
-        // But keep the GameObject active so children (spawned walls) are visible.
-        if (leftSlot != null && leftSlot.GetComponent<MeshRenderer>()) 
-            leftSlot.GetComponent<MeshRenderer>().enabled = false;
-        
-        if (rightSlot != null && rightSlot.GetComponent<MeshRenderer>()) 
-            rightSlot.GetComponent<MeshRenderer>().enabled = false;
-
         ApplyRandomWalls();
+    }
+
+    void PurgeLegacyChildren()
+    {
+        var trs = GetComponentsInChildren<Transform>(true);
+        for (int i = trs.Length - 1; i >= 0; i--)
+        {
+            var t = trs[i];
+            if (t == null || t == transform) continue;
+
+            if (t.name.Contains("Wall_Varient_"))
+                Destroy(t.gameObject);
+        }
     }
 
     public void ApplyRandomWalls()
     {
-        if (leftSlot == null || rightSlot == null) return;
         if (wallVariants == null || wallVariants.Length == 0) return;
 
-        // Cleanup previous
-        if (_leftInstance != null) Destroy(_leftInstance);
-        if (_rightInstance != null) Destroy(_rightInstance);
+        if (_leftInstance) Destroy(_leftInstance);
+        if (_rightInstance) Destroy(_rightInstance);
 
-        // Disable existing slots to prevent "Pink Wall" or other artifacts
-        leftSlot.gameObject.SetActive(false);
-        rightSlot.gameObject.SetActive(false);
+        var selectedPrefab = wallVariants[Random.Range(0, wallVariants.Length)];
+        if (selectedPrefab == null) return;
 
-        // Symmetric Selection
-        var randomIndex = Random.Range(0, wallVariants.Length);
-        var selectedPrefab = wallVariants[randomIndex];
-
-        // Spawn LEFT (Manual Position/Rotation to bypass Slot issues)
-        // Position: -3, Rotation: 0
         _leftInstance = Instantiate(selectedPrefab, transform);
         _leftInstance.transform.localPosition = new Vector3(-3, 0, 0);
         _leftInstance.transform.localRotation = Quaternion.identity;
         _leftInstance.transform.localScale = Vector3.one;
 
-        // Spawn RIGHT (Manual Position/Rotation)
-        // Position: 3, Rotation: 180
         _rightInstance = Instantiate(selectedPrefab, transform);
         _rightInstance.transform.localPosition = new Vector3(3, 0, 0);
         _rightInstance.transform.localRotation = Quaternion.Euler(0, 180, 0);
