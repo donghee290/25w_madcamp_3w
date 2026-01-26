@@ -78,6 +78,7 @@ public class GameManager : MonoBehaviour
         gameOverReason = reason;
 
         if (playerMotor != null)
+            playerMotor.ForceStopToIdle();
             playerMotor.enabled = false;
 
         Debug.Log($"[GameManager] GAME OVER: {reason}, distance={distanceMeters:0.0}m");
