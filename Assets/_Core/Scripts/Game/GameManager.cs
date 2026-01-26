@@ -34,8 +34,7 @@ public class GameManager : MonoBehaviour
 
     void OnDestroy()
     {
-        if (I == this)
-            SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     void Start()
@@ -87,11 +86,11 @@ public class GameManager : MonoBehaviour
 
     public void RestartSceneSimple()
     {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
+
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void ResetRun()
