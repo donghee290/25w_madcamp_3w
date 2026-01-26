@@ -1,24 +1,17 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
 
 public class PoseInput : MonoBehaviour, IPlayerInput
 {
     public int Lane { get; private set; }            // -1,0,1
-    public bool JumpTriggered { get; private set; }  // ∆Æ∏Æ∞≈(¬™∞‘ ¿Ø¡ˆ)
-    public bool RollHeld { get; private set; }       // ∆Æ∏Æ∞≈(¬™∞‘ ¿Ø¡ˆ)
-    public float MoveLevel { get; private set; }     // 0=STOP, ~0.5=WALK, 1=RUN
+    public bool JumpTriggered { get; private set; }  // Ìä∏Î¶¨Í±∞(ÏßßÍ≤å Ïú†ÏßÄ)
+    public bool RollHeld { get; private set; }       // Ìä∏Î¶¨Í±∞(ÏßßÍ≤å Ïú†ÏßÄ)
+    public float MoveLevel { get; private set; }     // 0~1 (Ïó∞ÏÜç)
 
-    /* ================= LANE (Left/Right) ================= */
+    /* ================= LANE (Body Left/Right) ================= */
     [Header("Lane (Body Left/Right)")]
-    [Tooltip("æÓ±˙ ¡ﬂΩ… X∞° ¡ﬂæ”(0.5)ø°º≠ ¿Ã æ»¿Ã∏È Lane=0")]
     public float laneDeadZone = 0.06f;
-
-    [Tooltip("¿Ã ¿ÃªÛ π˛æÓ≥™∏È Lane=-1/1 »Æ¡§")]
     public float laneStrongThreshold = 0.16f;
-
-    [Tooltip("Lane¿Ã »ÁµÈ∏Æ¡ˆ æ ∞‘ »Æ¡§±Ó¡ˆ ¿Ø¡ˆ«“ √÷º“ Ω√∞£(√ )")]
     public float laneHoldSeconds = 0.10f;
-
-    [Tooltip("ƒ´∏ﬁ∂Û∞° ∞≈øÔ√≥∑≥ ∫∏¿Ã∏È(¡¬øÏ π›¿¸) true")]
     public bool mirrorX = false;
 
     /* ================= JUMP (Hands Up) ================= */
@@ -33,37 +26,25 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public float wristBelowHipMargin = 0.08f;
     public float torsoCloseThreshold = 0.22f;
     public int rollFramesRequired = 2;
-    public float rollHoldSeconds = 0.18f;
-    public float rollCooldown = 0.7f;
+    public float rollHoldSeconds = 0.22f;   // Îã¨Î¶¥ ÎïåÎèÑ ÌôïÏã§Ìûà Ïû°ÌûàÍ≤å ÏïΩÍ∞Ñ ÎäòÎ¶º
+    public float rollCooldown = 0.45f;      // ÎÑàÎ¨¥ Í∏∏Î©¥ ÎãµÎãµÌï¥ÏÑú Ï§ÑÏûÑ
 
     /* ================= MOVE (Shoulder Y Motion Energy) ================= */
-    [Header("Move (Shoulder Y Motion)")]
-    [Tooltip("æÓ±˙ ¡ﬂΩ… y ∫Ø»≠∑Æ¿ª ¿Ã∏∏≈≠±Ó¡ˆ¥¬ 0¿∏∑Œ(¿‚¿Ω ¡¶∞≈)")]
-    public float shoulderDeltaDeadzone = 0.0025f;
-
-    [Tooltip("STOP/WALK ∞Ê∞Ë (EMA ø°≥ ¡ˆ ±‚¡ÿ)")]
-    public float walkThreshold = 0.010f;
-
-    [Tooltip("WALK/RUN ∞Ê∞Ë (EMA ø°≥ ¡ˆ ±‚¡ÿ)")]
-    public float runThreshold = 0.030f;
-
-    [Tooltip("ø°≥ ¡ˆ EMA Ω∫π´µ˘ º”µµ. ≈¨ºˆ∑œ ∫¸∏£∞‘ π›¿¿")]
-    public float energySmoothing = 10f;
-
-    [Tooltip("ªÛ≈¬ ∫Ø∞Ê¿Ã ∆¢¡ˆ æ ∞‘ √÷º“ ¿Ø¡ˆ Ω√∞£(√ )")]
-    public float stateHoldSeconds = 0.15f;
+    [Header("MoveLevel 0~1 (Shoulder Y energy)")]
+    public float shoulderDeltaDeadzone = 0.0008f;
+    public float walkThreshold = 0.001f;      // 0 Í∑ºÏ≤ò
+    public float runThreshold = 0.0020f;     // RUN ÏâΩÍ≤å(ÎÇÆÏùÑÏàòÎ°ù Ïâ¨ÏõÄ)
+    public float energySmoothing = 25f;
+    public float moveLevelSmoothing = 12f;
+    public float moveCurve = 1.35f;           // ÏûëÏùÑÏàòÎ°ù ÏÉÅÎã®(Îã¨Î¶¨Í∏∞) Îπ®Î¶¨ Î∂ôÏùå
 
     /* ================= Debug ================= */
     [Header("Debug")]
     public bool hasLandmarksDebug;
-    public bool rollBendDebug;
-    public float shYDebug, hipYDebug, torsoGapDebug;
-    public float energyDebug;
-    public int moveStateDebug; // 0 stop, 1 walk, 2 run
-
-    public float centerXDebug;
-    public float dxDebug;
-    public int laneCandidateDebug;
+    public float shYDebug, hipYDebug;
+    public float energyDebug, rawMoveDebug;
+    public float centerXDebug, dxDebug;
+    public bool handsUpDebug, rollBendDebug;
 
     /* ================= Internal ================= */
     private readonly Vector3[] _lm = new Vector3[33];
@@ -77,18 +58,12 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     private int _rollFrames;
     private float _rollHold;
 
-    // move energy
+    private int _pendingLane = 0;
+    private float _laneHold = 0f;
+
     private float _prevShY;
     private bool _hasPrevShY = false;
     private float _energyEma = 0f;
-
-    private int _state = 0; // 0 stop, 1 walk, 2 run
-    private int _pendingState = 0;
-    private float _stateHold = 0f;
-
-    // lane stabilize
-    private int _pendingLane = 0;
-    private float _laneHold = 0f;
 
     public void SetLandmarks(Vector3[] src)
     {
@@ -100,21 +75,21 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
     void Update()
     {
-        // »¶µÂ √≥∏Æ(∆Æ∏Æ∞≈√≥∑≥)
+        // Jump/Roll hold (Ìä∏Î¶¨Í±∞Ï≤òÎüº)
         if (_jumpHold > 0f) { _jumpHold -= Time.deltaTime; JumpTriggered = true; }
         else JumpTriggered = false;
 
         if (_rollHold > 0f) { _rollHold -= Time.deltaTime; RollHeld = true; }
         else RollHeld = false;
 
-        // ƒ¥ŸøÓ
         if (_jumpCd > 0f) _jumpCd -= Time.deltaTime;
         if (_rollCd > 0f) _rollCd -= Time.deltaTime;
 
         if (!_hasLm)
         {
-            MoveLevel = 0f;
             Lane = 0;
+            MoveLevel = 0f;
+
             _pendingLane = 0;
             _laneHold = 0f;
 
@@ -123,7 +98,6 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             return;
         }
 
-        // Landmarks
         Vector3 lSh = _lm[11];
         Vector3 rSh = _lm[12];
         Vector3 lWr = _lm[15];
@@ -133,15 +107,14 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
         float shY = (lSh.y + rSh.y) * 0.5f;
         float hipY = (lHip.y + rHip.y) * 0.5f;
-
         shYDebug = shY;
         hipYDebug = hipY;
 
-        /* ================= LANE (left/right by shoulder center X) ================= */
-        float centerX = (lSh.x + rSh.x) * 0.5f; // 0~1
-        if (mirrorX) centerX = 1f - centerX;    // ¡¬øÏ∞° π›¥Î∑Œ ≥™ø¿∏È ¿Ã∞… ƒ—
-
+        /* ================= LANE ================= */
+        float centerX = (lSh.x + rSh.x) * 0.5f;
+        if (mirrorX) centerX = 1f - centerX;
         centerXDebug = centerX;
+
         float dx = centerX - 0.5f;
         dxDebug = dx;
 
@@ -149,11 +122,8 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         if (dx < -laneStrongThreshold) laneCandidate = -1;
         else if (dx > laneStrongThreshold) laneCandidate = 1;
         else if (Mathf.Abs(dx) < laneDeadZone) laneCandidate = 0;
-        else laneCandidate = Lane; // ¡ﬂ∞£ øµø™ø°º≠¥¬ ±‚¡∏ Lane ¿Ø¡ˆ(∂≥∏≤ πÊ¡ˆ)
+        else laneCandidate = Lane;
 
-        laneCandidateDebug = laneCandidate;
-
-        // lane »Æ¡§±Ó¡ˆ hold
         if (laneCandidate != _pendingLane)
         {
             _pendingLane = laneCandidate;
@@ -166,47 +136,43 @@ public class PoseInput : MonoBehaviour, IPlayerInput
                 Lane = _pendingLane;
         }
 
-        /* ================= MOVE LEVEL (Shoulder Y Energy) ================= */
+        /* ================= MOVELEVEL (continuous) ================= */
         if (!_hasPrevShY)
         {
             _prevShY = shY;
             _hasPrevShY = true;
         }
+
         float dy = Mathf.Abs(shY - _prevShY);
         _prevShY = shY;
 
         if (dy < shoulderDeltaDeadzone) dy = 0f;
 
-        float t = 1f - Mathf.Exp(-energySmoothing * Time.deltaTime);
-        _energyEma = Mathf.Lerp(_energyEma, dy, t);
+        float tE = 1f - Mathf.Exp(-energySmoothing * Time.deltaTime);
+        _energyEma = Mathf.Lerp(_energyEma, dy, tE);
         energyDebug = _energyEma;
 
-        int targetState;
-        if (_energyEma < walkThreshold) targetState = 0;      // STOP
-        else if (_energyEma < runThreshold) targetState = 1;  // WALK
-        else targetState = 2;                                  // RUN
+        float raw;
+        if (_energyEma <= walkThreshold) raw = 0f;
+        else if (_energyEma >= runThreshold) raw = 1f;
+        else raw = (_energyEma - walkThreshold) / (runThreshold - walkThreshold);
 
-        if (targetState != _pendingState)
-        {
-            _pendingState = targetState;
-            _stateHold = 0f;
-        }
-        else
-        {
-            _stateHold += Time.deltaTime;
-            if (_stateHold >= stateHoldSeconds)
-            {
-                _state = _pendingState;
-            }
-        }
+        raw = Mathf.Clamp01(raw);
+        raw = Mathf.Pow(raw, Mathf.Max(0.2f, moveCurve));
+        // Îã¨Î¶¨Í∏∞ ÏâΩÍ≤å ÏÉÅÎã® Î∂ÄÏä§ÌåÖ(ÏõêÏπò ÏïäÏúºÎ©¥ Ïù¥ Ï§Ñ ÏÇ≠Ï†úÌï¥ÎèÑ Îê®)
+        raw = 1f - Mathf.Pow(1f - raw, 1.5f);
 
-        moveStateDebug = _state;
-        MoveLevel = (_state == 0) ? 0f : (_state == 1 ? 0.5f : 1f);
+        rawMoveDebug = raw;
+
+        float tM = 1f - Mathf.Exp(-moveLevelSmoothing * Time.deltaTime);
+        MoveLevel = Mathf.Lerp(MoveLevel, raw, tM);
 
         /* ================= JUMP ================= */
         bool handsUp =
             (lWr.y < lSh.y - handsUpMargin) &&
             (rWr.y < rSh.y - handsUpMargin);
+
+        handsUpDebug = handsUp;
 
         if (handsUp) _handsUpFrames++;
         else _handsUpFrames = 0;
@@ -219,14 +185,12 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             Debug.Log("[PoseInput] JUMP");
         }
 
-        /* ================= ROLL (BEND + HANDS BELOW HIP) ================= */
+        /* ================= ROLL ================= */
         bool wristsBelowHip =
             (lWr.y > hipY + wristBelowHipMargin) &&
             (rWr.y > hipY + wristBelowHipMargin);
 
         float torsoGap = Mathf.Abs(shY - hipY);
-        torsoGapDebug = torsoGap;
-
         bool torsoBent = torsoGap < torsoCloseThreshold;
 
         rollBendDebug = wristsBelowHip && torsoBent;
@@ -239,7 +203,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             _rollHold = rollHoldSeconds;
             _rollCd = rollCooldown;
             _rollFrames = 0;
-            Debug.Log("[PoseInput] ROLL (BEND+HANDS BELOW HIP)");
+            Debug.Log("[PoseInput] ROLL");
         }
     }
 }

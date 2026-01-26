@@ -6329,19 +6329,20 @@ MonoBehaviour:
   rollCooldown: 0.7
   shoulderDeltaDeadzone: 0
   walkThreshold: 0.001
-  runThreshold: 0.005
+  runThreshold: 0.003
   energySmoothing: 20
-  stateHoldSeconds: 0
+  moveLevelSmoothing: 10
+  moveCurve: 1.8
   hasLandmarksDebug: 0
-  rollBendDebug: 0
   shYDebug: 0
   hipYDebug: 0
-  torsoGapDebug: 0
   energyDebug: 0
-  moveStateDebug: 0
+  rawMoveDebug: 0
   centerXDebug: 0
   dxDebug: 0
   laneCandidateDebug: 0
+  handsUpDebug: 0
+  rollBendDebug: 0
 --- !u!1 &401404809
 GameObject:
   m_ObjectHideFlags: 0
