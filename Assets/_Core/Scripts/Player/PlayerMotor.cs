@@ -22,13 +22,16 @@ public class PlayerMotor : MonoBehaviour
     public float laneWidth = 1.2f;
     public float laneMoveSpeed = 14f;
 
-    [Header("Forward")]
-    public float forwardSpeed = 0f;
-    public float accelPerSec = 0.25f;
-    public float maxForwardSpeed = 14f;
+    [Header("Forward Speeds (NEW LOOP)")]
+    public float runSpeed = 10f;     // RUN 목표
+    public float walkSpeed = 6f;     // WALK 목표
+    public float stopSpeed = 0f;     // STOP 목표
 
-    [Tooltip("달리기 입력이 없을 때 0으로 얼마나 빨리 감속할지")]
-    public float decelToStopPerSec = 20f;
+    [Tooltip("forwardSpeed가 targetSpeed를 따라가는 속도(클수록 빨리 반응)")]
+    public float speedLerp = 8f;
+
+    [Tooltip("현재 전진 속도(디버그/표시용)")]
+    public float forwardSpeed = 0f;
 
     [Header("Jump")]
     public float jumpHeight = 2.5f;
@@ -85,15 +88,14 @@ public class PlayerMotor : MonoBehaviour
         SnapToGroundOnce();
         prevRollHeld = false;
 
-        // Animator 강제 설정 (Inspector 상태와 무관하게 코드로 고정)
+        // Animator 강제 설정
         if (anim != null)
         {
-            anim.applyRootMotion = false; // 말 안해도 아는데, 코드에서도 아예 못 켜게 고정
-            // 원하면 아래도 유지(특정 프로젝트에서 AnimatePhysics가 트랜스폼 덮어쓰는 타이밍 이슈가 나는 경우가 있음)
+            anim.applyRootMotion = false;
             anim.updateMode = AnimatorUpdateMode.Normal;
         }
 
-        // 비주얼(Aj) 로컬 고정값 저장 (Animator가 자식일 때만 의미 있음)
+        // 비주얼 로컬 고정값 저장
         if (anim != null)
         {
             visualRoot = anim.transform;
@@ -190,7 +192,6 @@ public class PlayerMotor : MonoBehaviour
     {
         if (input == null) return;
 
-        // Animator가 런타임 중 켜지거나 바뀌어도 다시 못 켜게 강제
         if (anim != null && anim.applyRootMotion) anim.applyRootMotion = false;
 
         bool grounded = IsGrounded();
@@ -227,14 +228,24 @@ public class PlayerMotor : MonoBehaviour
         float targetX = lane * laneWidth;
         currentX = Mathf.Lerp(currentX, targetX, Time.deltaTime * laneMoveSpeed);
 
-        // 전진 속도
-        bool runHeld = input.MoveLevel > 0.01f;
+        // =========================
+        // 전진 속도 (NEW LOOP)
+        // MoveLevel(0~1) → RunState → targetSpeed → forwardSpeed Lerp
+        // =========================
+        float r = Mathf.Clamp01(input.MoveLevel);
 
-        if (runHeld)
-            forwardSpeed = Mathf.Min(maxForwardSpeed, forwardSpeed + accelPerSec * Time.deltaTime);
-        else
-            forwardSpeed = Mathf.MoveTowards(forwardSpeed, 0f, decelToStopPerSec * Time.deltaTime);
-            
+        // 히스테리시스까지 굳이 필요 없으면 아래 3단 분기만으로 충분(키는 0/0.5/1이라 안정적)
+        // 히스테리시스가 꼭 필요하면 RunState를 멤버로 빼서 상태 유지형으로 확장 가능.
+        float targetSpeed;
+        bool isMoving;
+
+        if (r >= 0.7f) { targetSpeed = runSpeed; isMoving = true; }
+        else if (r >= 0.3f) { targetSpeed = walkSpeed; isMoving = true; }
+        else { targetSpeed = stopSpeed; isMoving = false; }
+
+        // 부드럽게 따라가기
+        forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, Time.deltaTime * speedLerp);
+
         // 슬라이드(캐릭터컨트롤러 높이)
         float desiredHeight = rollHeld ? slideHeight : normalHeight;
         cc.height = Mathf.Lerp(cc.height, desiredHeight, Time.deltaTime * slideLerp);
@@ -249,7 +260,7 @@ public class PlayerMotor : MonoBehaviour
         // 이동 벡터
         Vector3 move = Vector3.zero;
 
-        // x: 레인 보정 (너무 튀지 않게 clamp)
+        // x: 레인 보정
         float dx = currentX - transform.position.x;
         move.x = Mathf.Clamp(dx, -laneMoveSpeed * Time.deltaTime, laneMoveSpeed * Time.deltaTime);
 
@@ -261,7 +272,6 @@ public class PlayerMotor : MonoBehaviour
 
         cc.Move(move);
 
-        // cc.Move가 만든 “정답 위치”를 저장 (LateUpdate에서 누가 덮어쓰면 되돌리기 위해)
         posAfterMove = transform.position;
         hasPosAfterMove = true;
 
@@ -269,7 +279,7 @@ public class PlayerMotor : MonoBehaviour
         if (anim != null)
         {
             if (!string.IsNullOrEmpty(paramIsRunning))
-                anim.SetBool(paramIsRunning, runHeld && forwardSpeed > 0.01f);
+                anim.SetBool(paramIsRunning, isMoving);  // RUN 상태일 때만 러닝 애니
 
             if (!string.IsNullOrEmpty(paramIsGrounded))
                 anim.SetBool(paramIsGrounded, grounded);
@@ -278,32 +288,27 @@ public class PlayerMotor : MonoBehaviour
         if (debugLogs && Time.frameCount % 30 == 0)
         {
             Debug.Log(
-                $"[PlayerMotor] runHeld={runHeld} fwd={forwardSpeed:0.00} grounded={grounded} " +
-                $"jumpTrig={input.JumpTriggered} roll={rollHeld} " +
-                $"pos=({transform.position.x:0.00},{transform.position.y:0.00},{transform.position.z:0.00}) vY={verticalVel:0.00}"
+                $"[PlayerMotor] MoveLevel={r:0.00} target={targetSpeed:0.0} fwd={forwardSpeed:0.00} grounded={grounded} " +
+                $"jumpTrig={input.JumpTriggered} roll={rollHeld} lane={lane}"
             );
         }
     }
 
     void LateUpdate()
     {
-        // 1) 비주얼(Aj) 트랜스폼이 애니메이션 커브로 흔들리면 로컬을 고정
         if (visualRoot != null)
         {
             visualRoot.localPosition = visualLocalPos0;
             visualRoot.localRotation = visualLocalRot0;
         }
 
-        // 2) “누군가”가 PlayerRoot transform을 덮어쓴 경우(특히 z 원점복귀) 강제로 되돌림
         if (hasPosAfterMove)
         {
-            // 오차 허용치
             const float eps = 0.0005f;
 
             Vector3 now = transform.position;
             Vector3 expected = posAfterMove;
 
-            // z가 갑자기 틀어지는 게 핵심이지만, x/y도 같이 튀는 경우가 있어서 통째로 복원
             if (Mathf.Abs(now.x - expected.x) > eps ||
                 Mathf.Abs(now.y - expected.y) > eps ||
                 Mathf.Abs(now.z - expected.z) > eps)
@@ -317,7 +322,7 @@ public class PlayerMotor : MonoBehaviour
                 }
 
                 transform.position = expected;
-                currentX = transform.position.x; // 레인 내부 상태도 동기화
+                currentX = transform.position.x;
             }
         }
     }
@@ -334,7 +339,7 @@ public class PlayerMotor : MonoBehaviour
         {
             if (!string.IsNullOrEmpty(paramIsRunning)) anim.SetBool(paramIsRunning, false);
             if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, true);
-            anim.Rebind();      // 현재 애니메이션 상태 리셋
+            anim.Rebind();
             anim.Update(0f);
         }
     }
