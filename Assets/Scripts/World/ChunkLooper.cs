@@ -38,8 +38,15 @@ public class ChunkLooper : MonoBehaviour
     [Tooltip("Ceiling을 진행방향으로 살짝 밀기(틈 방지). 보통 0~0.05")]
     public float ceilingForwardOffset = 0.02f;
 
-    [Tooltip("Ceiling 프리팹 회전을 강제로 X=180 뒤집기(Plane 한쪽면 이슈 대응)")]
+    [Tooltip("Ceiling 프리팹 회전을 강제로 X=180 뒤집기(Plane 한쪽면 이슈 대응). 복합 프리팹이면 비주얼 자식만 뒤집습니다.")]
     public bool forceCeilingFlipX180 = true;
+
+    [Header("Ceiling prefab (composite-safe)")]
+    [Tooltip("Ceiling 프리팹 루트 아래에서 '비주얼'로 취급할 자식 이름. 비워두면 첫 Renderer를 자동 선택")]
+    public string ceilingVisualChildName = "Ceiling_Visual";
+
+    [Tooltip("플레이 시작 시 ceilingsParent 아래에 이미 존재하는 천장을 전부 제거(이전 실행 잔재/다른 곳에서 박힌 오브젝트 제거)")]
+    public bool purgeExistingCeilingsOnStart = true;
 
     [Header("BackWall (opaque wall)")]
     public GameObject backWallPrefab;
@@ -98,6 +105,9 @@ public class ChunkLooper : MonoBehaviour
     private float _progressZ0;            // progressRoot 시작값(델타 기준)
     private readonly List<Spawned> _spawned = new();
 
+    // ceilingsParent의 "시작 시점 자식 수" (NULL인데 천장이 생기는 케이스를 강제 제거할 때 기준)
+    private int _ceilingChildCount0;
+
     [Serializable]
     private class Spawned
     {
@@ -115,6 +125,14 @@ public class ChunkLooper : MonoBehaviour
         if (ceilingsParent == null) ceilingsParent = chunksParent;
         if (backdropsParent == null) backdropsParent = chunksParent;
         if (spawnPoint == null) spawnPoint = transform;
+
+        // 기존 천장 잔재 제거 (다른 곳에서 박힌 오브젝트/이전 실행 잔재가 ceilingsParent 아래에 남아있는 경우)
+        if (purgeExistingCeilingsOnStart && ceilingsParent != null)
+        {
+            for (int i = ceilingsParent.childCount - 1; i >= 0; i--)
+                Destroy(ceilingsParent.GetChild(i).gameObject);
+        }
+        _ceilingChildCount0 = ceilingsParent != null ? ceilingsParent.childCount : 0;
 
         if (progressRoot == null)
         {
@@ -136,6 +154,20 @@ public class ChunkLooper : MonoBehaviour
     {
         FillAhead(force: false);
         CleanupBehind();
+
+        // ceilingPrefab이 NULL인데도 ceilingsParent 아래에 천장이 늘어나는 경우:
+        // ChunkLooper 외부에서 생성/주입되고 있는 것이므로, 게임플레이에 남지 못하도록 강제 제거.
+        if (ceilingPrefab == null && ceilingsParent != null)
+        {
+            if (ceilingsParent.childCount > _ceilingChildCount0)
+            {
+                for (int i = ceilingsParent.childCount - 1; i >= _ceilingChildCount0; i--)
+                    Destroy(ceilingsParent.GetChild(i).gameObject);
+
+                if (debugLog)
+                    Debug.LogWarning("[Ceiling] Detected ceilings while ceilingPrefab is NULL -> purged.");
+            }
+        }
     }
 
     float GetSpawnBaseZ()
@@ -166,6 +198,12 @@ public class ChunkLooper : MonoBehaviour
 
         // targetZ는 "spawnPoint 기준 시작 + 진행량 + 앞쪽 확보"
         float targetZ = GetSpawnBaseZ() + pz + chunksAhead * chunkLengthZ;
+
+        if (debugLog)
+        {
+            Debug.Log($"[ChunkLooper] ceilingPrefab={(ceilingPrefab ? ceilingPrefab.name : "NULL")} " +
+                      $"sceneValid={(ceilingPrefab != null && ceilingPrefab.scene.IsValid())} this={name}/{GetInstanceID()}");
+        }
 
         while (_nextZ < targetZ)
         {
@@ -203,7 +241,6 @@ public class ChunkLooper : MonoBehaviour
         float z = _nextZ;
 
         // 모든 배치는 spawnPoint 기준으로, 진행축은 월드 Z로 쓴다.
-        // (trackRoot 회전/축 꼬임 방지하려면 여기서 forward 기준으로 바꾸는 방식도 가능)
         var basePos = new Vector3(spawnPoint.position.x, spawnPoint.position.y, z);
 
         // 청크
@@ -218,6 +255,7 @@ public class ChunkLooper : MonoBehaviour
 
         // 천장
         GameObject ceilingGo = null;
+
         if (ceilingPrefab != null)
         {
             // forward 오프셋을 '월드 forward'가 아니라 'spawnPoint forward'로 적용
@@ -226,27 +264,50 @@ public class ChunkLooper : MonoBehaviour
 
             var cPos = basePos + Vector3.up * ceilingYOffset + fwd * ceilingForwardOffset;
 
-            Quaternion cRot = ceilingPrefab.transform.rotation;
+            // 복합 프리팹 안전: 루트는 프리팹 회전 그대로 두고, 비주얼(Plane)만 뒤집는다.
+            ceilingGo = Instantiate(ceilingPrefab, cPos, ceilingPrefab.transform.rotation, ceilingsParent);
 
-            // Plane/Quad는 한쪽면이라 아래쪽을 보도록 뒤집어야 할 때가 많음
-            if (forceCeilingFlipX180)
+            Transform vis = null;
+
+            // 1) 이름으로 찾기
+            if (!string.IsNullOrEmpty(ceilingVisualChildName))
             {
-                var e = cRot.eulerAngles;
-                cRot = Quaternion.Euler(180f, e.y, e.z);
+                var t = ceilingGo.transform.Find(ceilingVisualChildName);
+                if (t != null) vis = t;
             }
 
-            ceilingGo = Instantiate(ceilingPrefab, cPos, cRot, ceilingsParent);
+            // 2) 없으면 첫 Renderer 가진 트랜스폼
+            if (vis == null)
+            {
+                var r = ceilingGo.GetComponentInChildren<Renderer>(true);
+                if (r != null) vis = r.transform;
+            }
+
+            // 비주얼만 뒤집기
+            if (forceCeilingFlipX180 && vis != null)
+            {
+                vis.localRotation = Quaternion.Euler(180f, 0f, 0f) * vis.localRotation;
+            }
 
             if (debugLog)
             {
-                var r = ceilingGo.GetComponentInChildren<Renderer>();
-                if (r == null) Debug.LogWarning($"[Ceiling] renderer missing: {ceilingGo.name}");
-                else if (!r.enabled) Debug.LogWarning($"[Ceiling] renderer disabled: {ceilingGo.name}");
+                var anyCollider = ceilingGo.GetComponentInChildren<Collider>(true);
+                if (anyCollider == null)
+                    Debug.LogWarning($"[Ceiling] collider missing in instantiated prefab: {ceilingGo.name}");
             }
         }
         else
         {
-            if (debugLog) Debug.LogWarning("[SpawnOne] ceilingPrefab is NULL");
+            // ceilingPrefab이 NULL인데 ceilingsParent에 천장이 생긴다면 ChunkLooper 외부 생성.
+            // SpawnOne 호출 타이밍에 발견되면 즉시 제거.
+            if (ceilingsParent != null && ceilingsParent.childCount > _ceilingChildCount0)
+            {
+                for (int i = ceilingsParent.childCount - 1; i >= _ceilingChildCount0; i--)
+                    Destroy(ceilingsParent.GetChild(i).gameObject);
+
+                if (debugLog)
+                    Debug.LogWarning("[Ceiling] ceilingPrefab is NULL but ceilings existed -> purged newly appeared ceilings.");
+            }
         }
 
         // 백월
