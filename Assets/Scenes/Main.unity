@@ -7078,9 +7078,9 @@ MonoBehaviour:
   laneWidth: 1.2
   laneMoveSpeed: 14
   forwardSpeed: 6
-  accelPerSec: 0.25
-  maxForwardSpeed: 14
-  decelToStopPerSec: 20
+  accelPerSec: 5
+  maxForwardSpeed: 20
+  decelToStopPerSec: 30
   jumpHeight: 2.5
   gravity: -15
   normalHeight: 1.8

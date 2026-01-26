@@ -228,15 +228,13 @@ public class PlayerMotor : MonoBehaviour
         currentX = Mathf.Lerp(currentX, targetX, Time.deltaTime * laneMoveSpeed);
 
         // 전진 속도
-        // bool runHeld = input.MoveLevel > 0.01f;
-        bool runHeld = true;
-        forwardSpeed = maxForwardSpeed;
+        bool runHeld = input.MoveLevel > 0.01f;
 
         if (runHeld)
             forwardSpeed = Mathf.Min(maxForwardSpeed, forwardSpeed + accelPerSec * Time.deltaTime);
         else
             forwardSpeed = Mathf.MoveTowards(forwardSpeed, 0f, decelToStopPerSec * Time.deltaTime);
-
+            
         // 슬라이드(캐릭터컨트롤러 높이)
         float desiredHeight = rollHeld ? slideHeight : normalHeight;
         cc.height = Mathf.Lerp(cc.height, desiredHeight, Time.deltaTime * slideLerp);
@@ -321,6 +319,23 @@ public class PlayerMotor : MonoBehaviour
                 transform.position = expected;
                 currentX = transform.position.x; // 레인 내부 상태도 동기화
             }
+        }
+    }
+
+    public void ForceStopToIdle()
+    {
+        forwardSpeed = 0f;
+        verticalVel = 0f;
+
+        if (cc != null)
+            cc.Move(Vector3.zero);
+
+        if (anim != null)
+        {
+            if (!string.IsNullOrEmpty(paramIsRunning)) anim.SetBool(paramIsRunning, false);
+            if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, true);
+            anim.Rebind();      // 현재 애니메이션 상태 리셋
+            anim.Update(0f);
         }
     }
 }
