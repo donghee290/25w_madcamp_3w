@@ -115,7 +115,8 @@ MonoBehaviour:
   m_GameObject: {fileID: 1452962346023821469}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 65f9b2f3255688344baf6265a90216b4, type: 3}
+  m_Script: {fileID: 11500000, guid: 65ddbceabd5521b4cb8a8d2f6601cd5a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   type: 1
+  laneSpan: 1
