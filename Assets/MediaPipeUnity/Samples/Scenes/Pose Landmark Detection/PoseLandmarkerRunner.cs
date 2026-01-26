@@ -18,8 +18,12 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
     private Experimental.TextureFramePool _textureFramePool;
 
     public readonly PoseLandmarkDetectionConfig config = new PoseLandmarkDetectionConfig();
+    public PoseLandmarkerResult LatestResult { get; private set; }
+    public bool HasLatestResult { get; private set; }
 
-    public override void Stop()
+
+
+        public override void Stop()
     {
       base.Stop();
       _textureFramePool?.Dispose();
@@ -131,24 +135,35 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
         switch (taskApi.runningMode)
         {
           case Tasks.Vision.Core.RunningMode.IMAGE:
+
             if (taskApi.TryDetect(image, imageProcessingOptions, ref result))
             {
-              _poseLandmarkerResultAnnotationController.DrawNow(result);
+                 LatestResult = result;
+                 HasLatestResult = true;
+                 _poseLandmarkerResultAnnotationController.DrawNow(result);
             }
             else
             {
-              _poseLandmarkerResultAnnotationController.DrawNow(default);
+                 HasLatestResult = false;
+                 LatestResult = default;
+                 _poseLandmarkerResultAnnotationController.DrawNow(default);
             }
+
             DisposeAllMasks(result);
+
             break;
           case Tasks.Vision.Core.RunningMode.VIDEO:
             if (taskApi.TryDetectForVideo(image, GetCurrentTimestampMillisec(), imageProcessingOptions, ref result))
             {
-              _poseLandmarkerResultAnnotationController.DrawNow(result);
+                  LatestResult = result;
+                  HasLatestResult = true;
+                  _poseLandmarkerResultAnnotationController.DrawNow(result);
             }
             else
             {
-              _poseLandmarkerResultAnnotationController.DrawNow(default);
+                  HasLatestResult = false;
+                  LatestResult = default;
+                  _poseLandmarkerResultAnnotationController.DrawNow(default);
             }
             DisposeAllMasks(result);
             break;
@@ -161,6 +176,9 @@ namespace Mediapipe.Unity.Sample.PoseLandmarkDetection
 
     private void OnPoseLandmarkDetectionOutput(PoseLandmarkerResult result, Image image, long timestamp)
     {
+      LatestResult = result;
+      HasLatestResult = true;
+
       _poseLandmarkerResultAnnotationController.DrawLater(result);
       DisposeAllMasks(result);
     }
