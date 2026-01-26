@@ -3,85 +3,127 @@ using UnityEngine;
 public class PoseInput : MonoBehaviour, IPlayerInput
 {
     public int Lane { get; private set; }            // -1,0,1
-    public bool JumpTriggered { get; private set; }  // 1프레임 트리거
-    public bool RollHeld { get; private set; }       // 누르고 있는 상태
-    public float MoveLevel { get; private set; }     // 0~1
+    public bool JumpTriggered { get; private set; }  // 트리거(짧게 유지)
+    public bool RollHeld { get; private set; }       // 트리거(짧게 유지)
+    public float MoveLevel { get; private set; }     // 0=STOP, ~0.5=WALK, 1=RUN
 
-    [Header("Lane (shoulder center X)")]
-    [Tooltip("중앙 데드존. 이 안이면 Lane=0")]
-    public float laneDeadZone = 0.08f;
-    [Tooltip("이 정도 벗어나면 Lane=-1/1 확정")]
-    public float laneStrongThreshold = 0.22f;
+    /* ================= LANE (Left/Right) ================= */
+    [Header("Lane (Body Left/Right)")]
+    [Tooltip("어깨 중심 X가 중앙(0.5)에서 이 안이면 Lane=0")]
+    public float laneDeadZone = 0.06f;
 
-    [Header("Jump (hands up)")]
-    [Tooltip("양 손목이 어깨보다 위면 점프")]
+    [Tooltip("이 이상 벗어나면 Lane=-1/1 확정")]
+    public float laneStrongThreshold = 0.16f;
+
+    [Tooltip("Lane이 흔들리지 않게 확정까지 유지할 최소 시간(초)")]
+    public float laneHoldSeconds = 0.10f;
+
+    [Tooltip("카메라가 거울처럼 보이면(좌우 반전) true")]
+    public bool mirrorX = false;
+
+    /* ================= JUMP (Hands Up) ================= */
+    [Header("Jump (Hands Up)")]
     public float handsUpMargin = 0.03f;
-    [Tooltip("연속 점프 방지 쿨다운(초)")]
     public float jumpCooldown = 0.6f;
+    public int handsUpFramesRequired = 2;
+    public float jumpHoldSeconds = 0.12f;
 
-    [Header("Roll (squat)")]
-    [Tooltip("엉덩이(hip) 기준보다 이만큼 내려가면 롤")]
-    public float squatThreshold = 0.10f;
+    /* ================= ROLL (Bend + Hands Below Hip) ================= */
+    [Header("Roll (Bend + Hands Below Hip)")]
+    public float wristBelowHipMargin = 0.08f;
+    public float torsoCloseThreshold = 0.22f;
+    public int rollFramesRequired = 2;
+    public float rollHoldSeconds = 0.18f;
+    public float rollCooldown = 0.7f;
 
-    [Header("Run/Stop")]
-    [Tooltip("포즈가 잡히면 기본 달리기(1). 원하면 제스처로 stop 추가 가능.")]
-    public bool autoRun = true;
+    /* ================= MOVE (Shoulder Y Motion Energy) ================= */
+    [Header("Move (Shoulder Y Motion)")]
+    [Tooltip("어깨 중심 y 변화량을 이만큼까지는 0으로(잡음 제거)")]
+    public float shoulderDeltaDeadzone = 0.0025f;
 
-    // ---- 내부 상태 ----
-    [SerializeField] private bool hasLandmarksDebug;
-    [SerializeField] private float lastLandmarkTime;
+    [Tooltip("STOP/WALK 경계 (EMA 에너지 기준)")]
+    public float walkThreshold = 0.010f;
 
-    private readonly Vector3[] _lm = new Vector3[33];   // 최신 랜드마크
-    private bool _hasLm = false;
+    [Tooltip("WALK/RUN 경계 (EMA 에너지 기준)")]
+    public float runThreshold = 0.030f;
 
-    private float _jumpCd = 0f;
-    private float _baseHipY = -1f;
+    [Tooltip("에너지 EMA 스무딩 속도. 클수록 빠르게 반응")]
+    public float energySmoothing = 10f;
 
-    /// <summary>
-    /// Bridge에서 매 프레임(또는 결과 수신 시) 호출해서 33개 랜드마크를 넣어준다.
-    /// x,y는 0~1 normalized. y는 위가 0, 아래가 1.
-    /// </summary>
+    [Tooltip("상태 변경이 튀지 않게 최소 유지 시간(초)")]
+    public float stateHoldSeconds = 0.15f;
+
+    /* ================= Debug ================= */
+    [Header("Debug")]
+    public bool hasLandmarksDebug;
+    public bool rollBendDebug;
+    public float shYDebug, hipYDebug, torsoGapDebug;
+    public float energyDebug;
+    public int moveStateDebug; // 0 stop, 1 walk, 2 run
+
+    public float centerXDebug;
+    public float dxDebug;
+    public int laneCandidateDebug;
+
+    /* ================= Internal ================= */
+    private readonly Vector3[] _lm = new Vector3[33];
+    private bool _hasLm;
+
+    private float _jumpCd;
+    private int _handsUpFrames;
+    private float _jumpHold;
+
+    private float _rollCd;
+    private int _rollFrames;
+    private float _rollHold;
+
+    // move energy
+    private float _prevShY;
+    private bool _hasPrevShY = false;
+    private float _energyEma = 0f;
+
+    private int _state = 0; // 0 stop, 1 walk, 2 run
+    private int _pendingState = 0;
+    private float _stateHold = 0f;
+
+    // lane stabilize
+    private int _pendingLane = 0;
+    private float _laneHold = 0f;
+
     public void SetLandmarks(Vector3[] src)
     {
         if (src == null || src.Length < 33) return;
         for (int i = 0; i < 33; i++) _lm[i] = src[i];
         _hasLm = true;
-        _hasLm = true;
         hasLandmarksDebug = true;
-        lastLandmarkTime = Time.time;
-
     }
 
     void Update()
     {
-        // JumpTriggered는 1프레임만 true여야 함
-        JumpTriggered = false;
+        // 홀드 처리(트리거처럼)
+        if (_jumpHold > 0f) { _jumpHold -= Time.deltaTime; JumpTriggered = true; }
+        else JumpTriggered = false;
 
-        // 1초 이상 랜드마크 업데이트가 없으면 끊긴 걸로 보고 stop
-        if (_hasLm && Time.time - lastLandmarkTime > 1.0f)
-        {
-            _hasLm = false;
-            hasLandmarksDebug = false;
-            _baseHipY = -1f;   // 다시 잡힐 때 기준 재설정
-        }
+        if (_rollHold > 0f) { _rollHold -= Time.deltaTime; RollHeld = true; }
+        else RollHeld = false;
 
-
+        // 쿨다운
         if (_jumpCd > 0f) _jumpCd -= Time.deltaTime;
+        if (_rollCd > 0f) _rollCd -= Time.deltaTime;
 
-        // 랜드마크가 아직 안 들어오면 "정지" 상태 유지
         if (!_hasLm)
         {
-            Lane = 0;
-            RollHeld = false;
             MoveLevel = 0f;
+            Lane = 0;
+            _pendingLane = 0;
+            _laneHold = 0f;
+
+            _hasPrevShY = false;
+            _energyEma = 0f;
             return;
         }
 
-        // 기본 달리기
-        MoveLevel = autoRun ? 1f : 0f;
-
-        // ---- 랜드마크 인덱스 ----
-        // 11/12: 어깨, 15/16: 손목, 23/24: 힙
+        // Landmarks
         Vector3 lSh = _lm[11];
         Vector3 rSh = _lm[12];
         Vector3 lWr = _lm[15];
@@ -89,30 +131,115 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         Vector3 lHip = _lm[23];
         Vector3 rHip = _lm[24];
 
-        // 1) Lane: 어깨 중심의 x가 화면 중앙(0.5)에서 얼마나 벗어났는지
+        float shY = (lSh.y + rSh.y) * 0.5f;
+        float hipY = (lHip.y + rHip.y) * 0.5f;
+
+        shYDebug = shY;
+        hipYDebug = hipY;
+
+        /* ================= LANE (left/right by shoulder center X) ================= */
         float centerX = (lSh.x + rSh.x) * 0.5f; // 0~1
+        if (mirrorX) centerX = 1f - centerX;    // 좌우가 반대로 나오면 이걸 켜
+
+        centerXDebug = centerX;
         float dx = centerX - 0.5f;
+        dxDebug = dx;
 
-        if (dx < -laneStrongThreshold) Lane = -1;
-        else if (dx > laneStrongThreshold) Lane = 1;
-        else if (Mathf.Abs(dx) < laneDeadZone) Lane = 0;
-        // deadzone~strong 사이에서는 Lane 유지하고 싶으면 else 생략해도 됨
+        int laneCandidate;
+        if (dx < -laneStrongThreshold) laneCandidate = -1;
+        else if (dx > laneStrongThreshold) laneCandidate = 1;
+        else if (Mathf.Abs(dx) < laneDeadZone) laneCandidate = 0;
+        else laneCandidate = Lane; // 중간 영역에서는 기존 Lane 유지(떨림 방지)
 
-        // 2) Jump: 양 손목이 어깨보다 "위"(y 더 작음)
+        laneCandidateDebug = laneCandidate;
+
+        // lane 확정까지 hold
+        if (laneCandidate != _pendingLane)
+        {
+            _pendingLane = laneCandidate;
+            _laneHold = 0f;
+        }
+        else
+        {
+            _laneHold += Time.deltaTime;
+            if (_laneHold >= laneHoldSeconds)
+                Lane = _pendingLane;
+        }
+
+        /* ================= MOVE LEVEL (Shoulder Y Energy) ================= */
+        if (!_hasPrevShY)
+        {
+            _prevShY = shY;
+            _hasPrevShY = true;
+        }
+        float dy = Mathf.Abs(shY - _prevShY);
+        _prevShY = shY;
+
+        if (dy < shoulderDeltaDeadzone) dy = 0f;
+
+        float t = 1f - Mathf.Exp(-energySmoothing * Time.deltaTime);
+        _energyEma = Mathf.Lerp(_energyEma, dy, t);
+        energyDebug = _energyEma;
+
+        int targetState;
+        if (_energyEma < walkThreshold) targetState = 0;      // STOP
+        else if (_energyEma < runThreshold) targetState = 1;  // WALK
+        else targetState = 2;                                  // RUN
+
+        if (targetState != _pendingState)
+        {
+            _pendingState = targetState;
+            _stateHold = 0f;
+        }
+        else
+        {
+            _stateHold += Time.deltaTime;
+            if (_stateHold >= stateHoldSeconds)
+            {
+                _state = _pendingState;
+            }
+        }
+
+        moveStateDebug = _state;
+        MoveLevel = (_state == 0) ? 0f : (_state == 1 ? 0.5f : 1f);
+
+        /* ================= JUMP ================= */
         bool handsUp =
             (lWr.y < lSh.y - handsUpMargin) &&
             (rWr.y < rSh.y - handsUpMargin);
 
-        if (handsUp && _jumpCd <= 0f)
+        if (handsUp) _handsUpFrames++;
+        else _handsUpFrames = 0;
+
+        if (_handsUpFrames >= handsUpFramesRequired && _jumpCd <= 0f)
         {
-            JumpTriggered = true;
+            _jumpHold = jumpHoldSeconds;
             _jumpCd = jumpCooldown;
+            _handsUpFrames = 0;
+            Debug.Log("[PoseInput] JUMP");
         }
 
-        // 3) Roll: 힙이 기준보다 내려가면(squat)
-        float hipY = (lHip.y + rHip.y) * 0.5f;
-        if (_baseHipY < 0f) _baseHipY = hipY; // 첫 프레임 기준 저장
+        /* ================= ROLL (BEND + HANDS BELOW HIP) ================= */
+        bool wristsBelowHip =
+            (lWr.y > hipY + wristBelowHipMargin) &&
+            (rWr.y > hipY + wristBelowHipMargin);
 
-        RollHeld = (hipY - _baseHipY) > squatThreshold;
+        float torsoGap = Mathf.Abs(shY - hipY);
+        torsoGapDebug = torsoGap;
+
+        bool torsoBent = torsoGap < torsoCloseThreshold;
+
+        rollBendDebug = wristsBelowHip && torsoBent;
+
+        if (rollBendDebug && _rollCd <= 0f) _rollFrames++;
+        else _rollFrames = 0;
+
+        if (_rollFrames >= rollFramesRequired && _rollCd <= 0f)
+        {
+            _rollHold = rollHoldSeconds;
+            _rollCd = rollCooldown;
+            _rollFrames = 0;
+            Debug.Log("[PoseInput] ROLL (BEND+HANDS BELOW HIP)");
+        }
     }
 }

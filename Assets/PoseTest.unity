@@ -3188,7 +3188,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &139239050
 Transform:
   m_ObjectHideFlags: 0
@@ -3526,6 +3526,53 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   side: 1
+--- !u!1 &157966242
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 157966244}
+  - component: {fileID: 157966243}
+  m_Layer: 0
+  m_Name: PoseBridge
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &157966243
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 157966242}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c582f885c5458cf489a11ffac57f91d5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  runner: {fileID: 1064799468}
+  poseInput: {fileID: 399992179}
+  debugLog: 1
+--- !u!4 &157966244
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 157966242}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 2.15, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &163892144 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3259285889726014651, guid: 5713b959e3c77a58fb258133fc8e4aef, type: 3}
@@ -4451,13 +4498,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 236859793}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 65f91ae70113c674c9a2664cb75dfbd0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   playerMotor: {fileID: 399992175}
-  inputSource: {fileID: 399992176}
+  inputSource: {fileID: 0}
   maxDistance: 10
   initialDistance: 7
   chaserDistance: 7
@@ -6121,7 +6168,6 @@ GameObject:
   m_Component:
   - component: {fileID: 399992178}
   - component: {fileID: 399992177}
-  - component: {fileID: 399992176}
   - component: {fileID: 399992175}
   - component: {fileID: 399992174}
   - component: {fileID: 399992173}
@@ -6213,22 +6259,6 @@ MonoBehaviour:
     m_Bits: 4294967295
   coyoteTime: 0.12
   debugLogs: 1
---- !u!114 &399992176
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 399992171}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f54b92752e658e4aa6c171aa8e20e10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  runKey: 273
-  walkKey: 119
-  stopKey: 115
-  neutralMoveLevel: 0.5
 --- !u!143 &399992177
 CharacterController:
   m_ObjectHideFlags: 0
@@ -6284,14 +6314,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0c13817016e0ada44a1f421b27543f51, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  laneDeadZone: 0.08
-  laneStrongThreshold: 0.22
+  laneDeadZone: 0.06
+  laneStrongThreshold: 0.06
+  laneHoldSeconds: 0.001
+  mirrorX: 0
   handsUpMargin: 0.03
   jumpCooldown: 0.6
-  squatThreshold: 0.1
-  autoRun: 1
+  handsUpFramesRequired: 2
+  jumpHoldSeconds: 0.12
+  wristBelowHipMargin: 0.02
+  torsoCloseThreshold: 0.3
+  rollFramesRequired: 2
+  rollHoldSeconds: 0.1
+  rollCooldown: 0.7
+  shoulderDeltaDeadzone: 0
+  walkThreshold: 0.001
+  runThreshold: 0.005
+  energySmoothing: 20
+  stateHoldSeconds: 0
   hasLandmarksDebug: 0
-  lastLandmarkTime: 0
+  rollBendDebug: 0
+  shYDebug: 0
+  hipYDebug: 0
+  torsoGapDebug: 0
+  energyDebug: 0
+  moveStateDebug: 0
+  centerXDebug: 0
+  dxDebug: 0
+  laneCandidateDebug: 0
 --- !u!1 &401404809
 GameObject:
   m_ObjectHideFlags: 0
@@ -13107,9 +13157,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8798066379235852099, guid: 5713b959e3c77a58fb258133fc8e4aef, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1006057044}
-    - targetCorrespondingSourceObject: {fileID: 8798066379235852099, guid: 5713b959e3c77a58fb258133fc8e4aef, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 1006057045}
   m_SourcePrefab: {fileID: 100100000, guid: 5713b959e3c77a58fb258133fc8e4aef, type: 3}
 --- !u!4 &1006057041 stripped
 Transform:
@@ -13146,21 +13193,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   annotation: {fileID: 138292643}
   _visualizeZ: 0
---- !u!114 &1006057045
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1006057042}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c582f885c5458cf489a11ffac57f91d5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  runner: {fileID: 0}
-  poseInput: {fileID: 399992179}
-  debugLog: 0
 --- !u!1 &1014058637
 GameObject:
   m_ObjectHideFlags: 0
@@ -18406,53 +18438,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1255751171}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1586290250
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1586290252}
-  - component: {fileID: 1586290251}
-  m_Layer: 0
-  m_Name: PoseBridge
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &1586290251
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1586290250}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c582f885c5458cf489a11ffac57f91d5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  runner: {fileID: 1064799468}
-  poseInput: {fileID: 399992179}
-  debugLog: 1
---- !u!4 &1586290252
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1586290250}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.15, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1586777720
 GameObject:
   m_ObjectHideFlags: 0
@@ -21831,7 +21816,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1804955502
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -23745,13 +23730,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 1969388814}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 75ef97bc76962174cbb08d78189ab400, type: 3}
+  m_Script: {fileID: 11500000, guid: 65444f4fac2cfa54493ff143b6ae85f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 399992178}
-  offset: {x: 0, y: 3.5, z: -6.5}
-  smooth: 10
-  lookAt: 1
+  offset: {x: 0, y: 3, z: -7.5}
+  followLerp: 10
+  lookAtHeight: 0.6
+  lockRotation: 1
+  fixedEuler: {x: 25, y: 0, z: 0}
 --- !u!1 &1992637805
 GameObject:
   m_ObjectHideFlags: 0
@@ -25286,4 +25273,4 @@ SceneRoots:
   - {fileID: 2142421911}
   - {fileID: 860189451}
   - {fileID: 1942304609}
-  - {fileID: 1586290252}
+  - {fileID: 157966244}
