@@ -7003,8 +7003,8 @@ GameObject:
   m_Component:
   - component: {fileID: 696068144}
   - component: {fileID: 696068149}
+  - component: {fileID: 696068152}
   - component: {fileID: 696068148}
-  - component: {fileID: 696068147}
   - component: {fileID: 696068145}
   - component: {fileID: 696068150}
   - component: {fileID: 696068151}
@@ -7045,18 +7045,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   obstacleTag: Obstacle
---- !u!114 &696068147
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 696068143}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8f54b92752e658e4aa6c171aa8e20e10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &696068148
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7069,7 +7057,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f21788a4860920041b322059b011aa21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  inputSource: {fileID: 696068147}
+  inputSource: {fileID: 0}
   anim: {fileID: 256363709}
   paramIsRunning: IsRunning
   paramIsGrounded: IsGrounded
@@ -7077,10 +7065,11 @@ MonoBehaviour:
   trigRoll: Roll
   laneWidth: 1.2
   laneMoveSpeed: 14
+  runSpeed: 10
+  walkSpeed: 6
+  stopSpeed: 2
+  speedLerp: 8
   forwardSpeed: 6
-  accelPerSec: 5
-  maxForwardSpeed: 20
-  decelToStopPerSec: 30
   jumpHeight: 2.5
   gravity: -15
   normalHeight: 1.8
@@ -7148,6 +7137,22 @@ MonoBehaviour:
   lockLocalX: 1
   lockLocalZ: 1
   lockLocalY: 0
+--- !u!114 &696068152
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 696068143}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f54b92752e658e4aa6c171aa8e20e10, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  runKey: 273
+  walkKey: 119
+  stopKey: 115
+  neutralMoveLevel: 0.5
 --- !u!1 &697202895
 GameObject:
   m_ObjectHideFlags: 0
@@ -15902,6 +15907,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1502140642}
   - component: {fileID: 1502140641}
+  - component: {fileID: 1502140643}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -15940,6 +15946,30 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1502140643
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1502140640}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65f91ae70113c674c9a2664cb75dfbd0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerMotor: {fileID: 696068148}
+  inputSource: {fileID: 696068152}
+  maxDistance: 10
+  initialDistance: 7
+  chaserDistance: 7
+  gainPerSec_Run: 0.2
+  losePerSec_Walk: 0.8
+  losePerSec_Stop: 1.6
+  runThreshold: 0.7
+  stopThreshold: 0.3
+  chaserState: 0
+  debugLogs: 0
 --- !u!1 &1517397665
 GameObject:
   m_ObjectHideFlags: 0
