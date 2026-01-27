@@ -95,6 +95,7 @@ GameObject:
   - component: {fileID: 5912143910276076842}
   - component: {fileID: 4863809823685430571}
   - component: {fileID: 7552749219408465555}
+  - component: {fileID: 7728819031642428885}
   m_Layer: 0
   m_Name: Item_Banana
   m_TagString: Untagged
@@ -152,6 +153,33 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chaser: {fileID: 0}
-  bananaDropPrefab: {fileID: 0}
+  bananaDropPrefab: {fileID: 8364099085804371718, guid: eca995787cc771645a2e6e9147bdc452, type: 3}
   dropForwardOffset: 1
   dropY: 0.1
+--- !u!54 &7728819031642428885
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8265845396684845263}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0

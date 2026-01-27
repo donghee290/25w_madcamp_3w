@@ -64,27 +64,62 @@ public class ChaserSystem : MonoBehaviour
             chaserAnimator.speed = value ? 0f : 1f;
     }
 
-        [Header("Banana Stun")]
-        public float bananaStunSeconds = 2.0f;
-        public string trigFall = "Fall";   // Animator Trigger 이름
-        public string trigPain = "";       // 안 쓰면 비워도 됨
+    // ====== Banana Stun ======
+    [Header("Banana Stun")]
+    public float bananaStunSeconds = 2.0f;     // (카메라 이벤트/표시 유지 시간) 필요 없으면 1로 맞춰도 됨
+    public float bananaFreezeSeconds = 1.0f;   // (추격 로직 멈추는 시간) <- 요청: 1초
+    public string trigFall = "Fall";           // 넘어짐 트리거
+    public string trigRun = "";                // Run 트리거가 있으면 넣고, 없으면 비워두세요
 
-        // 시간 기반 스턴(카메라/로직 조건용으로 가장 안전)
-        private float bananaStunUntil = -1f;
-        public bool IsBananaStunned => Time.time < bananaStunUntil;
+    private float bananaStunUntil = -1f;       // 이벤트(카메라) 유지
+    private float bananaFreezeUntil = -1f;     // 실제 추격 멈춤(1초)
+    public bool IsBananaStunned => Time.time < bananaStunUntil;
 
-        public void ApplyBananaStun(float seconds)
+    Coroutine bananaRoutine;
+
+    public void ApplyBananaStun(float seconds)
+    {
+        if (!gameObject.activeInHierarchy) return;
+
+        // 1) 이벤트(카메라)용 유지 시간 갱신 (연속으로 먹어도 끊기지 않게)
+        bananaStunUntil = Mathf.Max(bananaStunUntil, Time.time + seconds);
+
+        // 2) 실제 추격 멈추는 시간은 "1초"로 고정 (원하면 bananaFreezeSeconds 조절)
+        bananaFreezeUntil = Mathf.Max(bananaFreezeUntil, Time.time + bananaFreezeSeconds);
+
+        // 3) Fall 트리거
+        if (chaserAnimator != null && !string.IsNullOrEmpty(trigFall))
+            chaserAnimator.SetTrigger(trigFall);
+
+        // 4) 1초 뒤 Run 복귀
+        if (bananaRoutine != null) StopCoroutine(bananaRoutine);
+        bananaRoutine = StartCoroutine(CoBananaRecover());
+    }
+
+    System.Collections.IEnumerator CoBananaRecover()
+    {
+        // 추격 멈춤 시간(1초) 기다림
+        float wait = Mathf.Max(0f, bananaFreezeUntil - Time.time);
+        if (wait > 0f) yield return new WaitForSeconds(wait);
+
+        // Run으로 복귀시키기
+        if (chaserAnimator != null)
         {
-            if (!gameObject.activeInHierarchy) return;
-
-            // 중첩되면 더 길게 유지(연속으로 먹었을 때도 카메라가 안 끊김)
-            bananaStunUntil = Mathf.Max(bananaStunUntil, Time.time + seconds);
-
-            // 넘어짐 트리거(애니 전이로 Fall->Pain->Run 자동)
-            if (chaserAnimator != null && !string.IsNullOrEmpty(trigFall))
-                chaserAnimator.SetTrigger(trigFall);
+            // 트리거 기반이면 trigRun 사용
+            if (!string.IsNullOrEmpty(trigRun))
+            {
+                chaserAnimator.SetTrigger(trigRun);
+            }
+            else
+            {
+                // 트리거 없으면 파라미터로라도 "달리는 상태"를 강제
+                if (!string.IsNullOrEmpty(animParamIsRunning))
+                    chaserAnimator.SetBool(animParamIsRunning, true);
+            }
         }
 
+        bananaRoutine = null;
+    }
 
     [Header("Runtime")]
     public ChaserState chaserState = ChaserState.Far;
@@ -135,7 +170,7 @@ public class ChaserSystem : MonoBehaviour
     void Update()
     {
         if (frozen) return;
-        if (IsBananaStunned) return;
+        if (Time.time < bananaFreezeUntil) return;   // 추격만 1초 멈춤
         
         if (GameManager.I == null) return;
         if (GameManager.I.State != GameState.Playing) return;
