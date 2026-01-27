@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Obstacle
   - Item
+  - Global Resource
   layers:
   - Default
   - TransparentFX
@@ -16,7 +17,7 @@ TagManager:
   - Obstacle
   - Chaser
   - Player
-  - 
+  - Character
   - 
   - 
   - 
