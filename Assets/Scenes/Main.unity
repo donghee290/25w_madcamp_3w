@@ -2407,14 +2407,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1727609864}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: 0.9961947, z: -0.08715578, w: 0}
+  m_LocalRotation: {x: -0.025952978, y: 0.99110514, z: -0.13048144, w: -0.0034167732}
   m_LocalPosition: {x: 0, y: 1.6, z: 1.8}
   m_LocalScale: {x: 10, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1677479375}
   m_Father: {fileID: 2065437542}
-  m_LocalEulerAnglesHint: {x: 10, y: 180, z: 0}
+  m_LocalEulerAnglesHint: {x: 15, y: 180, z: -3}
 --- !u!114 &1727609866
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2428,14 +2428,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   target: {fileID: 2065437542}
-  lookTarget: {fileID: 696068144}
   chaserSystem: {fileID: 2065437540}
   camObj: {fileID: 1677479374}
-  localOffset: {x: 0, y: 1.6, z: 0}
-  lookHeight: 1.5
-  followSharpness: 12
-  dangerThreshold01: 0.5
+  localOffset: {x: 0, y: 2.6, z: 3.5}
+  followSharpness: 10
+  dangerThreshold: 0.5
   minOnTime: 0.35
+  fixedEuler: {x: 15, y: 180, z: -3}
 --- !u!1 &1732470097
 GameObject:
   m_ObjectHideFlags: 0
