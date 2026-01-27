@@ -26,6 +26,7 @@ public class GameManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
         I = this;
         DontDestroyOnLoad(gameObject);
 
@@ -81,6 +82,7 @@ public class GameManager : MonoBehaviour
             playerMotor.ForceStopToIdle();
             playerMotor.enabled = false;
         }
+
         Debug.Log($"[GameManager] GAME OVER: {reason}, distance={distanceMeters:0.0}m");
     }
 
