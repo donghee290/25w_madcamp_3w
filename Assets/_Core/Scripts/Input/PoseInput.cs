@@ -8,7 +8,6 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public float MoveLevel { get; private set; }     // 0~1 (연속)
     public bool FlyForward { get; private set; }
 
-
     /* ================= LANE (Body Left/Right) ================= */
     [Header("Lane (Body Left/Right)")]
     public float laneDeadZone = 0.06f;
@@ -28,30 +27,22 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public float wristBelowHipMargin = 0.02f;
     public float torsoCloseThreshold = 0.3f;
     public int rollFramesRequired = 2;
-    public float rollHoldSeconds = 0.1f;   // 달릴 때도 확실히 잡히게 약간 늘림
-    public float rollCooldown = 0.7f;      // 너무 길면 답답해서 줄임
+    public float rollHoldSeconds = 0.1f;
+    public float rollCooldown = 0.7f;
 
     /* ================= MOVE (Shoulder Y Motion Energy) ================= */
     [Header("MoveLevel 0~1 (Shoulder Y energy)")]
     public float shoulderDeltaDeadzone = 0f;
-    public float walkThreshold = 0.001f;      // 0 근처
-    public float runThreshold = 0.003f;     // RUN 쉽게(낮을수록 쉬움)
+    public float walkThreshold = 0.001f;
+    public float runThreshold = 0.003f;
     public float energySmoothing = 20f;
     public float moveLevelSmoothing = 10f;
-    public float moveCurve = 1.8f;           // 작을수록 상단(달리기) 빨리 붙음
+    public float moveCurve = 1.8f;
 
-    /* ================= FLY (Arms Out + Flap) ================= */
-    [Header("Fly (Arms Out + Flap)")]
-    public float armsOutMinX = 0.18f;          // 손목이 어깨 중심보다 좌/우로 이만큼 이상 벌어지면 "펼침"
-    public float wristNearShoulderY = 0.10f;   // 손목이 어깨 Y 근처(±)면 "수평"
-    public float flapSpeedThreshold = 0.015f;  // 손목 Y 변화 속도(초당) 임계값
-    public int flapFramesRequired = 2;         // 연속 프레임 조건
-    public float flyHoldSeconds = 0.12f;       // FlyForward를 트리거처럼 짧게 유지(원하면 0.2~0.3)
-
-    private float _prevLWY, _prevRWY;
-    private bool _hasPrevWrists = false;
-    private int _flapFrames = 0;
-    private float _flyHold = 0f;
+    /* ================= FLY (Arms Out Hold) ================= */
+    [Header("Fly (Arms Out Hold)")]
+    public float armsOutMinX = 0.18f;        // 어깨 중심 기준 좌/우 벌어짐
+    public float wristNearShoulderY = 0.12f; // 손목이 어깨 Y 근처여야 함
 
     /* ================= Debug ================= */
     [Header("Debug")]
@@ -104,6 +95,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         {
             Lane = 0;
             MoveLevel = 0f;
+            FlyForward = false;   // ✅ 추가: 랜드마크 없으면 fly 입력도 꺼짐
 
             _pendingLane = 0;
             _laneHold = 0f;
@@ -125,7 +117,8 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         shYDebug = shY;
         hipYDebug = hipY;
 
-        
+        // ✅ 기본값: 매 프레임 false로 초기화 후, 조건 만족하면 true
+        FlyForward = false;
 
         /* ================= LANE ================= */
         float centerX = (lSh.x + rSh.x) * 0.5f;
@@ -176,7 +169,6 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
         raw = Mathf.Clamp01(raw);
         raw = Mathf.Pow(raw, Mathf.Max(0.2f, moveCurve));
-        // 달리기 쉽게 상단 부스팅(원치 않으면 이 줄 삭제해도 됨)
         raw = 1f - Mathf.Pow(1f - raw, 1.5f);
 
         rawMoveDebug = raw;
@@ -222,5 +214,26 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             _rollFrames = 0;
             Debug.Log("[PoseInput] ROLL");
         }
+
+        /* ================= FLY (ARMS OUT HOLD) ================= */
+        // 목표: "양 팔을 옆으로 벌린 자세"를 유지하면 FlyForward=true
+        // 주의: 실제 비행 진입은 아이템 로직(PlayerMotor.SetFlying/StartFlyingImmediate)에서만 됨.
+        // 여기선 입력 신호(FlyForward)만 제공.
+        float shCenterX = (lSh.x + rSh.x) * 0.5f;
+
+        if (mirrorX)
+        {
+            // mirrorX면 x축이 뒤집혀 들어오므로 손목도 같은 기준으로 판단
+            // (centerX도 mirrorX 처리했으니, shCenterX도 동일 처리)
+            shCenterX = 1f - shCenterX;
+        }
+
+        bool armsOut =
+            (lWr.x < shCenterX - armsOutMinX) &&
+            (rWr.x > shCenterX + armsOutMinX) &&
+            (Mathf.Abs(lWr.y - lSh.y) < wristNearShoulderY) &&
+            (Mathf.Abs(rWr.y - rSh.y) < wristNearShoulderY);
+
+        FlyForward = armsOut;
     }
 }
