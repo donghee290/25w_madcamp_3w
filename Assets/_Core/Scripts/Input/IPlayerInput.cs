@@ -1,7 +1,8 @@
 public interface IPlayerInput
 {
     int Lane { get; }           // -1,0,1
-    bool JumpTriggered { get; } // ÇÑ ÇÁ·¹ÀÓ Æ®¸®°Å
-    bool RollHeld { get; }      // ´©¸£°í ÀÖ´Â »óÅÂ
-    float MoveLevel { get; }    // 0(¸ØÃã)~1(´Þ¸²)
+    bool JumpTriggered { get; } // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Æ®ï¿½ï¿½ï¿½ï¿½
+    bool RollHeld { get; }      // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½
+    float MoveLevel { get; }    // 0(ï¿½ï¿½ï¿½ï¿½)~1(ï¿½Þ¸ï¿½)
+    bool FlyForward { get; }
 }
