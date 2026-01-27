@@ -7,46 +7,52 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public bool RollHeld { get; private set; }       // 트리거(짧게 유지)
     public float MoveLevel { get; private set; }     // 0~1 (연속)
 
-    /* ================= LANE (Body Left/Right) ================= */
     [Header("Lane (Body Left/Right)")]
     public float laneDeadZone = 0.06f;
     public float laneStrongThreshold = 0.16f;
     public float laneHoldSeconds = 0.10f;
     public bool mirrorX = false;
 
-    /* ================= JUMP (Hands Up) ================= */
     [Header("Jump (Hands Up)")]
     public float handsUpMargin = 0.03f;
     public float jumpCooldown = 0.6f;
     public int handsUpFramesRequired = 2;
     public float jumpHoldSeconds = 0.12f;
 
-    /* ================= ROLL (Bend + Hands Below Hip) ================= */
-    [Header("Roll (Bend + Hands Below Hip)")]
-    public float wristBelowHipMargin = 0.08f;
-    public float torsoCloseThreshold = 0.22f;
-    public int rollFramesRequired = 2;
-    public float rollHoldSeconds = 0.22f;   // 달릴 때도 확실히 잡히게 약간 늘림
-    public float rollCooldown = 0.45f;      // 너무 길면 답답해서 줄임
-
-    /* ================= MOVE (Shoulder Y Motion Energy) ================= */
     [Header("MoveLevel 0~1 (Shoulder Y energy)")]
     public float shoulderDeltaDeadzone = 0.0008f;
-    public float walkThreshold = 0.001f;      // 0 근처
-    public float runThreshold = 0.0020f;     // RUN 쉽게(낮을수록 쉬움)
+    public float walkThreshold = 0.001f;
+    public float runThreshold = 0.0020f;
     public float energySmoothing = 25f;
     public float moveLevelSmoothing = 12f;
-    public float moveCurve = 1.35f;           // 작을수록 상단(달리기) 빨리 붙음
+    public float moveCurve = 1.35f;
 
-    /* ================= Debug ================= */
+    [Header("Roll (RUN-Friendly)")]
+    [Tooltip("손목 y가 힙 y보다 아래(더 큰 y)로 내려가야 롤 인정")]
+    public float wristBelowHipMargin = 0.06f;
+
+    [Tooltip("숙임 판정: |shoulderY-hipY| < threshold 이면 숙임. 달릴수록 자동 완화됨")]
+    public float torsoCloseThreshold = 0.28f;
+
+    [Tooltip("rollCandidate가 이 시간(초) 유지되면 롤 트리거")]
+    public float rollDetectSeconds = 0.10f;
+
+    [Tooltip("트리거를 놓치지 않게 RollHeld 유지 시간")]
+    public float rollHoldSeconds = 0.35f;
+
+    public float rollCooldown = 0.25f;
+
+    [Tooltip("달릴수록( MoveLevel 높을수록 ) 롤이 더 쉽게 되도록 threshold를 얼마나 완화할지")]
+    public float runRollEase = 0.08f; // 0.05~0.12 추천
+
     [Header("Debug")]
     public bool hasLandmarksDebug;
     public float shYDebug, hipYDebug;
     public float energyDebug, rawMoveDebug;
     public float centerXDebug, dxDebug;
-    public bool handsUpDebug, rollBendDebug;
+    public bool handsUpDebug, rollCandidateDebug;
+    public float rollDetectTimerDebug;
 
-    /* ================= Internal ================= */
     private readonly Vector3[] _lm = new Vector3[33];
     private bool _hasLm;
 
@@ -55,8 +61,8 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     private float _jumpHold;
 
     private float _rollCd;
-    private int _rollFrames;
     private float _rollHold;
+    private float _rollDetectTimer;
 
     private int _pendingLane = 0;
     private float _laneHold = 0f;
@@ -75,12 +81,12 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
     void Update()
     {
-        // Jump/Roll hold (트리거처럼)
-        if (_jumpHold > 0f) { _jumpHold -= Time.deltaTime; JumpTriggered = true; }
-        else JumpTriggered = false;
+        // hold triggers
+        JumpTriggered = false;
+        RollHeld = false;
 
+        if (_jumpHold > 0f) { _jumpHold -= Time.deltaTime; JumpTriggered = true; }
         if (_rollHold > 0f) { _rollHold -= Time.deltaTime; RollHeld = true; }
-        else RollHeld = false;
 
         if (_jumpCd > 0f) _jumpCd -= Time.deltaTime;
         if (_rollCd > 0f) _rollCd -= Time.deltaTime;
@@ -89,12 +95,12 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         {
             Lane = 0;
             MoveLevel = 0f;
-
             _pendingLane = 0;
             _laneHold = 0f;
-
             _hasPrevShY = false;
             _energyEma = 0f;
+            _rollDetectTimer = 0f;
+            rollDetectTimerDebug = 0f;
             return;
         }
 
@@ -110,7 +116,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         shYDebug = shY;
         hipYDebug = hipY;
 
-        /* ================= LANE ================= */
+        // ================= LANE =================
         float centerX = (lSh.x + rSh.x) * 0.5f;
         if (mirrorX) centerX = 1f - centerX;
         centerXDebug = centerX;
@@ -132,11 +138,10 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         else
         {
             _laneHold += Time.deltaTime;
-            if (_laneHold >= laneHoldSeconds)
-                Lane = _pendingLane;
+            if (_laneHold >= laneHoldSeconds) Lane = _pendingLane;
         }
 
-        /* ================= MOVELEVEL (continuous) ================= */
+        // ================= MOVELEVEL (continuous) =================
         if (!_hasPrevShY)
         {
             _prevShY = shY;
@@ -159,15 +164,13 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
         raw = Mathf.Clamp01(raw);
         raw = Mathf.Pow(raw, Mathf.Max(0.2f, moveCurve));
-        // 달리기 쉽게 상단 부스팅(원치 않으면 이 줄 삭제해도 됨)
-        raw = 1f - Mathf.Pow(1f - raw, 1.5f);
-
+        raw = 1f - Mathf.Pow(1f - raw, 1.4f); // 상단 부스팅(달리기 쉽게)
         rawMoveDebug = raw;
 
         float tM = 1f - Mathf.Exp(-moveLevelSmoothing * Time.deltaTime);
         MoveLevel = Mathf.Lerp(MoveLevel, raw, tM);
 
-        /* ================= JUMP ================= */
+        // ================= JUMP =================
         bool handsUp =
             (lWr.y < lSh.y - handsUpMargin) &&
             (rWr.y < rSh.y - handsUpMargin);
@@ -185,25 +188,32 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             Debug.Log("[PoseInput] JUMP");
         }
 
-        /* ================= ROLL ================= */
+        // ================= ROLL (RUN-Friendly) =================
+        // 달릴수록 숙임 판정 완화(롤 더 잘 됨)
+        float easedTorsoThreshold = torsoCloseThreshold + MoveLevel * runRollEase;
+
         bool wristsBelowHip =
             (lWr.y > hipY + wristBelowHipMargin) &&
             (rWr.y > hipY + wristBelowHipMargin);
 
         float torsoGap = Mathf.Abs(shY - hipY);
-        bool torsoBent = torsoGap < torsoCloseThreshold;
+        bool torsoBent = torsoGap < easedTorsoThreshold;
 
-        rollBendDebug = wristsBelowHip && torsoBent;
+        bool rollCandidate = wristsBelowHip && torsoBent;
+        rollCandidateDebug = rollCandidate;
 
-        if (rollBendDebug && _rollCd <= 0f) _rollFrames++;
-        else _rollFrames = 0;
+        if (rollCandidate && _rollCd <= 0f) _rollDetectTimer += Time.deltaTime;
+        else _rollDetectTimer = 0f;
 
-        if (_rollFrames >= rollFramesRequired && _rollCd <= 0f)
+        rollDetectTimerDebug = _rollDetectTimer;
+
+        if (_rollDetectTimer >= rollDetectSeconds && _rollCd <= 0f)
         {
-            _rollHold = rollHoldSeconds;
+            _rollHold = rollHoldSeconds; // 트리거 유지
             _rollCd = rollCooldown;
-            _rollFrames = 0;
-            Debug.Log("[PoseInput] ROLL");
+            _rollDetectTimer = 0f;
+
+            Debug.Log("[PoseInput] ROLL TRIGGERED");
         }
     }
 }

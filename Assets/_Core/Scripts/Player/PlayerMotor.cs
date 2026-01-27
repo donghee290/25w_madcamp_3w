@@ -10,7 +10,7 @@ public class PlayerMotor : MonoBehaviour
     [Header("Animator (required)")]
     public Animator anim;
 
-    [Header("Animator Params (only existing ones)")]
+    [Header("Animator Params")]
     public string paramIsRunning = "IsRunning";
     public string paramIsGrounded = "IsGrounded";
     public string trigJump = "Jump";
@@ -18,13 +18,13 @@ public class PlayerMotor : MonoBehaviour
 
     [Header("Lane")]
     public float laneWidth = 1.2f;
-    public float laneSmoothTime = 0.08f; // 0.06~0.12
-    public float laneMaxSpeed = 18f;     // 12~20
+    public float laneSmoothTime = 0.08f;
+    public float laneMaxSpeed = 18f;
 
     [Header("Forward (Continuous)")]
     public float maxForwardSpeed = 14f;
-    public float accelTime = 0.25f;     // 가속 빠르게
-    public float decelTime = 0.55f;     // 감속 부드럽게
+    public float accelTime = 0.25f;
+    public float decelTime = 0.55f;
 
     [Tooltip("MoveLevel이 이 값 이하 + 지면이면 forwardSpeed를 즉시 0으로 스냅")]
     public float stopSnapThreshold = 0.03f;
@@ -34,6 +34,12 @@ public class PlayerMotor : MonoBehaviour
 
     [Tooltip("현재 전진 속도(디버그/표시용)")]
     public float forwardSpeed = 0f;
+
+    [Header("Roll Slide (keep speed)")]
+    public float rollSpeedFactor = 0.75f; // 조금 더 유지감 있게
+    public float rollDecelTime = 0.18f;
+    public float rollMinSpeed = 4.0f;     // 롤 중 최소 전진속도(슬라이드 느낌)
+    private float rollEntrySpeed = 0f;
 
     [Header("Jump")]
     public float jumpHeight = 2.5f;
@@ -52,18 +58,13 @@ public class PlayerMotor : MonoBehaviour
     private float coyoteTimer = 0f;
 
     private CharacterController cc;
-
-    // lane smoothing
     private float currentX;
     private float laneVel;
-
-    // vertical
     private float verticalVel;
     private bool prevRollHeld = false;
 
     private bool isGroundedCached;
     public bool IsRolling => input != null && input.RollHeld;
-    public bool IsAirborne => !isGroundedCached;
     public float CurrentForwardSpeed => forwardSpeed;
 
     [Header("Debug")]
@@ -90,21 +91,14 @@ public class PlayerMotor : MonoBehaviour
         verticalVel = 0f;
 
         SnapToGroundOnce();
-        prevRollHeld = false;
 
         if (anim != null)
         {
             anim.applyRootMotion = false;
             anim.updateMode = AnimatorUpdateMode.Normal;
-
             visualRoot = anim.transform;
             visualLocalPos0 = visualRoot.localPosition;
             visualLocalRot0 = visualRoot.localRotation;
-        }
-
-        if (debugLogs)
-        {
-            Debug.Log($"[PlayerMotor] input={(input == null ? "NULL" : input.GetType().Name)} anim={(anim == null ? "NULL" : anim.name)}");
         }
     }
 
@@ -116,19 +110,13 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
-        var monos = GetComponents<MonoBehaviour>();
-        foreach (var m in monos)
+        foreach (var m in GetComponents<MonoBehaviour>())
         {
-            if (m == null) continue;
-            if (m is IPlayerInput ii)
-            {
-                input = ii;
-                return;
-            }
+            if (m is IPlayerInput ii) { input = ii; return; }
         }
 
         input = null;
-        Debug.LogError("[PlayerMotor] IPlayerInput not found. Attach PoseInput/KeyboardInput or assign inputSource.");
+        Debug.LogError("[PlayerMotor] IPlayerInput not found.");
     }
 
     void ResolveAnimator()
@@ -145,25 +133,22 @@ public class PlayerMotor : MonoBehaviour
         }
 
         anim = null;
-        Debug.LogError("[PlayerMotor] Animator with controller not found in self/children.");
+        Debug.LogError("[PlayerMotor] Animator not found.");
     }
 
     void SnapToGroundOnce()
     {
         Vector3 foot = GetFootWorldPos();
         Vector3 origin = foot + Vector3.up * 2f;
-
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask, QueryTriggerInteraction.Ignore))
         {
-            float delta = hit.point.y - foot.y;
-            transform.position += new Vector3(0, delta, 0);
+            transform.position += new Vector3(0, hit.point.y - foot.y, 0);
         }
     }
 
     Vector3 GetFootWorldPos()
     {
-        float half = cc.height * 0.5f;
-        float footOffset = half - cc.radius;
+        float footOffset = cc.height * 0.5f - cc.radius;
         return transform.position + cc.center - Vector3.up * footOffset;
     }
 
@@ -171,7 +156,7 @@ public class PlayerMotor : MonoBehaviour
     {
         Vector3 foot = GetFootWorldPos();
         Vector3 origin = foot + Vector3.up * groundRayStartUp;
-        return Physics.Raycast(origin, Vector3.down, out RaycastHit _, groundRayLength, groundMask, QueryTriggerInteraction.Ignore);
+        return Physics.Raycast(origin, Vector3.down, groundRayLength, groundMask, QueryTriggerInteraction.Ignore);
     }
 
     void Update()
@@ -198,24 +183,22 @@ public class PlayerMotor : MonoBehaviour
         bool rollStarted = rollHeld && !prevRollHeld;
         prevRollHeld = rollHeld;
 
-        // Jump (달리는 중에도 가능) / Roll 중 점프는 금지(원하면 이 조건 제거 가능)
+        // ✅ Jump: 달리면서 가능
         if (coyoteTimer > 0f && input.JumpTriggered && !rollHeld)
         {
             verticalVel = Mathf.Sqrt(jumpHeight * -2f * gravity);
             coyoteTimer = 0f;
-
-            if (anim != null && !string.IsNullOrEmpty(trigJump))
-                anim.SetTrigger(trigJump);
+            if (anim != null && !string.IsNullOrEmpty(trigJump)) anim.SetTrigger(trigJump);
         }
 
-        // Roll trigger (달리는 중에도 항상 가능)
+        // ✅ Roll: 달리면서 가능 + 속도 저장
         if (rollStarted)
         {
-            if (anim != null && !string.IsNullOrEmpty(trigRoll))
-                anim.SetTrigger(trigRoll);
+            rollEntrySpeed = forwardSpeed;
+            if (anim != null && !string.IsNullOrEmpty(trigRoll)) anim.SetTrigger(trigRoll);
         }
 
-        // Lane SmoothDamp
+        // Lane smooth
         int lane = Mathf.Clamp(input.Lane, -1, 1);
         float targetX = lane * laneWidth;
 
@@ -228,31 +211,36 @@ public class PlayerMotor : MonoBehaviour
             Time.deltaTime
         );
 
-        // Forward speed: MoveLevel(0~1) continuous + stop snap
+        // Forward speed
         float ml = Mathf.Clamp01(input.MoveLevel);
 
-        if (ml <= stopSnapThreshold && grounded)
+        if (rollHeld)
         {
-            // 완전 멈춤 (스냅)
-            forwardSpeed = 0f;
+            // ✅ 롤 중 속도 유지(슬라이드)
+            float targetRollSpeed = Mathf.Max(rollMinSpeed, rollEntrySpeed * rollSpeedFactor);
+            float k = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.0001f, rollDecelTime));
+            forwardSpeed = Mathf.Lerp(forwardSpeed, targetRollSpeed, k);
+        }
+        else if (ml <= stopSnapThreshold && grounded)
+        {
+            forwardSpeed = 0f; // 완전 정지
         }
         else
         {
             if (ml > 0f) ml = Mathf.Max(ml, minMoveLevel);
 
             float targetSpeed = maxForwardSpeed * ml;
-
             float tau = (forwardSpeed < targetSpeed) ? accelTime : decelTime;
             float k = 1f - Mathf.Exp(-Time.deltaTime / Mathf.Max(0.0001f, tau));
             forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, k);
         }
 
-        // 슬라이드 높이
+        // Slide height
         float desiredHeight = rollHeld ? slideHeight : normalHeight;
         cc.height = Mathf.Lerp(cc.height, desiredHeight, Time.deltaTime * slideLerp);
         cc.center = new Vector3(0, cc.height * 0.5f, 0);
 
-        // Move vector
+        // Move
         Vector3 move = Vector3.zero;
 
         float dx = currentX - transform.position.x;
@@ -267,17 +255,12 @@ public class PlayerMotor : MonoBehaviour
         posAfterMove = transform.position;
         hasPosAfterMove = true;
 
-        // Animator params
+        // Animator params (롤 우선)
         if (anim != null)
         {
-            // ✅ 핵심: 롤 중에는 러닝 bool을 내려서 롤 애니가 눌리지 않게
             bool isRunningForAnim = (forwardSpeed > 0.1f) && !rollHeld;
-
-            if (!string.IsNullOrEmpty(paramIsRunning))
-                anim.SetBool(paramIsRunning, isRunningForAnim);
-
-            if (!string.IsNullOrEmpty(paramIsGrounded))
-                anim.SetBool(paramIsGrounded, grounded);
+            if (!string.IsNullOrEmpty(paramIsRunning)) anim.SetBool(paramIsRunning, isRunningForAnim);
+            if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, grounded);
         }
 
         if (debugLogs && Time.frameCount % 30 == 0)
@@ -295,32 +278,18 @@ public class PlayerMotor : MonoBehaviour
         }
 
         if (hasPosAfterMove)
-        {
-            const float eps = 0.0005f;
-
-            Vector3 now = transform.position;
-            Vector3 expected = posAfterMove;
-
-            if (Mathf.Abs(now.x - expected.x) > eps ||
-                Mathf.Abs(now.y - expected.y) > eps ||
-                Mathf.Abs(now.z - expected.z) > eps)
-            {
-                if (debugLogs)
-                    Debug.LogWarning("[PlayerMotor] Transform overwritten after Move(). restoring.");
-
-                transform.position = expected;
-                currentX = transform.position.x;
-            }
-        }
+            transform.position = posAfterMove;
     }
 
+    // GameManager에서 호출하는 비상 정지
     public void ForceStopToIdle()
     {
         forwardSpeed = 0f;
         verticalVel = 0f;
+        currentX = transform.position.x;
+        laneVel = 0f;
 
-        if (cc != null)
-            cc.Move(Vector3.zero);
+        if (cc != null) cc.Move(Vector3.zero);
 
         if (anim != null)
         {
