@@ -64,6 +64,36 @@ public class ChaserSystem : MonoBehaviour
             chaserAnimator.speed = value ? 0f : 1f;
     }
 
+    [Header("Banana Stun")]
+    public float bananaStunSeconds = 2.0f;
+    public string trigFall = "Fall";   // Animator Trigger 이름
+    public string trigPain = "";       // 안 쓰면 비워도 됨
+
+    private bool stunned = false;
+
+    public void ApplyBananaStun(float seconds)
+    {
+        if (!gameObject.activeInHierarchy) return;
+        if (stunned) return; // 연속 중첩 방지(원하면 갱신 방식으로 변경)
+        StartCoroutine(CoBananaStun(seconds));
+    }
+
+    System.Collections.IEnumerator CoBananaStun(float seconds)
+    {
+        stunned = true;
+
+        // 추격 로직만 정지 (애니는 재생해야 함)
+        // Update()의 초반에 stunned 체크를 걸어주면 됨
+
+        if (chaserAnimator != null && !string.IsNullOrEmpty(trigFall))
+            chaserAnimator.SetTrigger(trigFall);
+
+        // Fall->Pain->Run은 애니 전이로 자동 처리하는 걸 추천
+        yield return new WaitForSeconds(seconds);
+
+        stunned = false;
+    }
+
     [Header("Runtime")]
     public ChaserState chaserState = ChaserState.Far;
 
@@ -113,6 +143,7 @@ public class ChaserSystem : MonoBehaviour
     void Update()
     {
         if (frozen) return;
+        if (stunned) return;
         
         if (GameManager.I == null) return;
         if (GameManager.I.State != GameState.Playing) return;

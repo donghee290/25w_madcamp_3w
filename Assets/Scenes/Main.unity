@@ -452,12 +452,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   wingsPrefab: {fileID: 5236341666602990681, guid: 05a978434707b7a45b623c2ea75d1df9, type: 3}
+  bananaPickupPrefab: {fileID: 0}
+  bananaDropPrefab: {fileID: 0}
   player: {fileID: 256363704}
   laneWidth: 1.2
   spawnY: 1.6
   spawnAheadZ: 22
-  checkInterval: 8
-  chance: 0.746
+  wingsCheckInterval: 8
+  wingsChance: 0.07
+  bananaCheckInterval: 6
+  bananaChance: 0.1
+  enableBananaDropVisual: 0
 --- !u!4 &256363704 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4801168182277407668, guid: 5d0654be3d2b6a741a83071931bb0898, type: 3}
@@ -3186,6 +3191,9 @@ MonoBehaviour:
   runThreshold: 0.7
   stopThreshold: 0.3
   freezeOnCatch: 1
+  bananaStunSeconds: 2
+  trigFall: Fall
+  trigPain: 
   chaserState: 0
   debugLogs: 0
 --- !u!95 &2065437541 stripped
