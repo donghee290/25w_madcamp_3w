@@ -1272,6 +1272,14 @@ MonoBehaviour:
   intervalStage1: 1.6
   intervalStage2: 1.2
   intervalStage3: 0.85
+  spawnChanceStage1: 0.85
+  spawnChanceStage2: 0.8
+  spawnChanceStage3: 0.75
+  singleOnly: 1
+  minObstacleGapZ: 10
+  zBlockRange: 2
+  laneBlockHalfWidth: 0.55
+  maxSpawnTries: 10
 --- !u!4 &1039562791
 Transform:
   m_ObjectHideFlags: 0
