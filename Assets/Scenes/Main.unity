@@ -1927,7 +1927,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 0m
+  m_text: 0 m
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: c503bc5387525374c915d25375854b3e, type: 2}
   m_sharedMaterial: {fileID: -7993694195032581367, guid: c503bc5387525374c915d25375854b3e, type: 2}
@@ -2430,11 +2430,10 @@ MonoBehaviour:
   target: {fileID: 2065437542}
   chaserSystem: {fileID: 2065437540}
   camObj: {fileID: 1677479374}
-  localOffset: {x: 0, y: 2.6, z: 3.5}
-  followSharpness: 10
+  localOffset: {x: 0, y: 1.8, z: 2}
+  followSharpness: 12
+  lookHeightFromTarget: 1.5
   dangerThreshold: 0.5
-  minOnTime: 0.35
-  fixedEuler: {x: 15, y: 180, z: -3}
 --- !u!1 &1732470097
 GameObject:
   m_ObjectHideFlags: 0
@@ -3195,8 +3194,9 @@ MonoBehaviour:
   stopThreshold: 0.3
   freezeOnCatch: 1
   bananaStunSeconds: 2
+  bananaFreezeSeconds: 1
   trigFall: Fall
-  trigPain: 
+  trigRun: 
   chaserState: 0
   debugLogs: 0
 --- !u!95 &2065437541 stripped
@@ -3295,6 +3295,7 @@ GameObject:
   - component: {fileID: 2116446716}
   - component: {fileID: 2116446718}
   - component: {fileID: 2116446717}
+  - component: {fileID: 2116446719}
   m_Layer: 5
   m_Name: RawImage
   m_TagString: Untagged
@@ -3356,6 +3357,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2116446715}
   m_CullTransparentMesh: 1
+--- !u!114 &2116446719
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2116446715}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6441e0e2530c7be45bb3d271a8b44ed1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  chaserSystem: {fileID: 2065437540}
+  previewRawImage: {fileID: 2116446717}
+  dangerThreshold: 0.5
 --- !u!1 &2132249510
 GameObject:
   m_ObjectHideFlags: 0
