@@ -6,6 +6,8 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public bool JumpTriggered { get; private set; }  // 트리거(짧게 유지)
     public bool RollHeld { get; private set; }       // 트리거(짧게 유지)
     public float MoveLevel { get; private set; }     // 0~1 (연속)
+    public bool FlyForward { get; private set; }
+
 
     /* ================= LANE (Body Left/Right) ================= */
     [Header("Lane (Body Left/Right)")]
