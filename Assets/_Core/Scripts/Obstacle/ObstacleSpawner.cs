@@ -210,13 +210,15 @@ public class ObstacleSpawner : MonoBehaviour
 
     void CleanupOldObstacles()
     {
-        var obs = GameObject.FindGameObjectsWithTag("Obstacle");
         float destroyZ = player.position.z - cleanupBehindZ;
 
-        foreach (var o in obs)
+        // "Obstacle" 태그에 의존하지 않고, 씬 전체에서 ObstacleMarker 가진 것만 정리
+        var markers = GameObject.FindObjectsOfType<ObstacleMarker>();
+        foreach (var m in markers)
         {
-            if (o.transform.position.z < destroyZ)
-                Destroy(o);
+            if (m != null && m.transform.position.z < destroyZ)
+                Destroy(m.gameObject);
         }
     }
+
 }
