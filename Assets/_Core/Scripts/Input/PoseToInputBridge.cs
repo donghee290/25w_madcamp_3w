@@ -17,18 +17,28 @@ public class PoseToInputBridge : MonoBehaviour
         if (!runner.HasLatestResult) return;
 
         var result = runner.LatestResult;
-
-        // poseLandmarks가 없으면 리턴
         if (result.poseLandmarks == null || result.poseLandmarks.Count == 0) return;
 
-        // 첫 번째 사람만 사용
-        var lmList = result.poseLandmarks[0].landmarks;
-        if (lmList == null || lmList.Count < 33) return;
+        // NormalizedLandmarks는 struct라 null 체크 불가 → 내부 landmarks만 체크
+        var lmContainer = result.poseLandmarks[0];
+        var lmList = lmContainer.landmarks;
+        if (lmList == null) return;
 
-        for (int i = 0; i < 33; i++)
+        int n = lmList.Count;
+        if (n < 33) return;
+
+        try
         {
-            // x,y,z는 0~1 normalized (y는 위가 0)
-            _buf[i] = new Vector3(lmList[i].x, lmList[i].y, lmList[i].z);
+            for (int i = 0; i < 33; i++)
+            {
+                var lm = lmList[i];
+                _buf[i] = new Vector3(lm.x, lm.y, lm.z);
+            }
+        }
+        catch (System.ArgumentOutOfRangeException)
+        {
+            // 프레임 중간 갱신/레이스 방어: 이번 프레임 스킵
+            return;
         }
 
         poseInput.SetLandmarks(_buf);
@@ -36,4 +46,5 @@ public class PoseToInputBridge : MonoBehaviour
         if (debugLog && Time.frameCount % 60 == 0)
             Debug.Log($"[Bridge] landmarks OK. x0={_buf[0].x:0.00} y0={_buf[0].y:0.00}");
     }
+
 }
