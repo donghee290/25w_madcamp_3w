@@ -70,6 +70,7 @@ public class ChaserSystem : MonoBehaviour
     public string trigPain = "";       // 안 쓰면 비워도 됨
 
     private bool stunned = false;
+    public bool IsBananaStunned => stunned;
 
     public void ApplyBananaStun(float seconds)
     {
