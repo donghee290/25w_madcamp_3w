@@ -64,6 +64,28 @@ public class ChaserSystem : MonoBehaviour
             chaserAnimator.speed = value ? 0f : 1f;
     }
 
+        [Header("Banana Stun")]
+        public float bananaStunSeconds = 2.0f;
+        public string trigFall = "Fall";   // Animator Trigger 이름
+        public string trigPain = "";       // 안 쓰면 비워도 됨
+
+        // 시간 기반 스턴(카메라/로직 조건용으로 가장 안전)
+        private float bananaStunUntil = -1f;
+        public bool IsBananaStunned => Time.time < bananaStunUntil;
+
+        public void ApplyBananaStun(float seconds)
+        {
+            if (!gameObject.activeInHierarchy) return;
+
+            // 중첩되면 더 길게 유지(연속으로 먹었을 때도 카메라가 안 끊김)
+            bananaStunUntil = Mathf.Max(bananaStunUntil, Time.time + seconds);
+
+            // 넘어짐 트리거(애니 전이로 Fall->Pain->Run 자동)
+            if (chaserAnimator != null && !string.IsNullOrEmpty(trigFall))
+                chaserAnimator.SetTrigger(trigFall);
+        }
+
+
     [Header("Runtime")]
     public ChaserState chaserState = ChaserState.Far;
 
@@ -113,6 +135,7 @@ public class ChaserSystem : MonoBehaviour
     void Update()
     {
         if (frozen) return;
+        if (IsBananaStunned) return;
         
         if (GameManager.I == null) return;
         if (GameManager.I.State != GameState.Playing) return;
