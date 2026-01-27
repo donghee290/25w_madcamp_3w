@@ -20,7 +20,7 @@ public class ChunkLooper : MonoBehaviour
 
     [Header("Runtime spawning")]
     public int chunksAhead = 12;
-    public int chunksBehind = 3;
+    public int chunksBehind = 12;
 
     [Header("Chunk prefabs (NO FLOOR/CEILING inside)")]
     public GameObject corridorChunkBase;
