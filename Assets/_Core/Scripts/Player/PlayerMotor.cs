@@ -324,13 +324,25 @@ public class PlayerMotor : MonoBehaviour
         currentX = Mathf.Lerp(currentX, targetX, dt * laneMoveSpeed);
 
         // 전진 속도
-        float r = Mathf.Clamp01(input.MoveLevel);
+        float r;
+
+        // Fly 상태면 MoveLevel(런/워크) 무시하고, F키로만 전진
+        if (isFlying)
+        {
+            r = input.FlyForward ? 1f : 0f;
+        }
+        else
+        {
+            r = Mathf.Clamp01(input.MoveLevel);
+        }
+
         float targetSpeed =
             (r >= 0.75f) ? runSpeed :
             (r >= 0.25f) ? walkSpeed :
             stopSpeed;
 
         forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, dt * speedLerp);
+
 
         // ===== 충돌 캡슐 세팅 =====
         if (!isFlying)
@@ -434,6 +446,8 @@ public class PlayerMotor : MonoBehaviour
             isFlying = false;
             coyoteTimer = 0f;
             verticalVel = -2f;
+
+            if (anim != null && !string.IsNullOrEmpty("Land")) anim.SetTrigger("Land");
 
             // ✅ 착지: stepOffset 원복
             if (cc != null) cc.stepOffset = defaultStepOffset;
