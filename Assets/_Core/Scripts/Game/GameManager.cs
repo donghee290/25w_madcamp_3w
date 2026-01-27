@@ -19,6 +19,12 @@ public class GameManager : MonoBehaviour
     public GameOverReason Reason => gameOverReason;
     public float DistanceMeters => distanceMeters;
 
+/*
+    public void BeginRun()
+    {
+        state = GameState.Playing;
+    }
+*/
     void Awake()
     {
         if (I != null && I != this)
@@ -67,7 +73,7 @@ public class GameManager : MonoBehaviour
         EnsurePlayerMotor();
         if (playerMotor == null) return;
 
-        distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime;
+        distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime * 0.1f;
     }
 
     public void GameOver(GameOverReason reason)
