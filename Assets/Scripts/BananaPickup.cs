@@ -17,7 +17,8 @@ public class BananaPickup : MonoBehaviour
     void OnTriggerEnter(Collider other)
     {
         // 플레이어만 먹게
-        if (other.GetComponent<PlayerMotor>() == null) return;
+        var pm = other.GetComponentInParent<PlayerMotor>();
+        if (pm == null) return;
 
         // 1) 즉시 스턴 + 넘어짐 애니(ChaserSystem에서 처리)
         if (chaser != null)

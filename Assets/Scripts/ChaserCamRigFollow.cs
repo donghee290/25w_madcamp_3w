@@ -3,9 +3,12 @@ using UnityEngine;
 public class ChaserCamRigFollow : MonoBehaviour
 {
     [Header("Refs")]
-    public Transform target;       // ChaserRoot(Granny)
-    public Transform lookTarget;   // PlayerRoot
+    public Transform target;              // ChaserRoot(Granny)
+    public Transform lookTarget;          // PlayerRoot
     public ChaserSystem chaserSystem;
+
+    [Tooltip("실제로 켜고/끄고 싶은 카메라 오브젝트(예: ChaserCam)")]
+    public GameObject camObj;
 
     [Header("Follow")]
     public Vector3 localOffset = new Vector3(0f, 1.8f, 2.0f);
@@ -24,18 +27,27 @@ public class ChaserCamRigFollow : MonoBehaviour
     {
         if (chaserSystem == null)
             chaserSystem = FindFirstObjectByType<ChaserSystem>();
+
+        // camObj 미지정이면 자기/자식에서 Camera 찾아서 그 GO를 잡음
+        if (camObj == null)
+        {
+            var cam = GetComponentInChildren<Camera>(true);
+            if (cam != null) camObj = cam.gameObject;
+        }
     }
 
     void LateUpdate()
     {
-        // 1) 카메라 ON 조건 계산
+        if (!target) return;
+
+        // 1) 켜야 하는지 판단
         bool nearDanger = false;
         bool bananaEvent = false;
 
         if (chaserSystem != null)
         {
             nearDanger = chaserSystem.chaserDistance <= dangerDistanceThreshold;
-            bananaEvent = chaserSystem.IsBananaStunned; // 바나나 스턴 동안
+            bananaEvent = chaserSystem.IsBananaStunned; // 바나나 스턴 동안도
         }
 
         bool shouldOn = nearDanger || bananaEvent;
@@ -44,16 +56,11 @@ public class ChaserCamRigFollow : MonoBehaviour
         if (shouldOn) onUntilTime = Time.time + minOnTime;
         bool finalOn = Time.time <= onUntilTime;
 
-        // 2) 카메라(리그) 활성/비활성
-        if (gameObject.activeSelf != finalOn)
-            gameObject.SetActive(finalOn);
+        // 2) 카메라만 토글
+        if (camObj != null && camObj.activeSelf != finalOn)
+            camObj.SetActive(finalOn);
 
-        // 비활성 전환 프레임엔 아래 로직 실행하면 문제 생길 수 있어 early return
-        if (!finalOn) return;
-
-        // 3) 기존 follow 로직
-        if (!target) return;
-
+        // 3) 리그는 항상 따라가게(카메라 꺼져도 위치는 갱신해둠)
         Vector3 desiredPos = target.position
                              + target.right * localOffset.x
                              + Vector3.up * localOffset.y

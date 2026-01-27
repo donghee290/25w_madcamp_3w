@@ -1214,7 +1214,9 @@ MonoBehaviour:
   - {fileID: 9037919235032952634, guid: 6ea060ef223948b4fbf34bac937d714f, type: 3}
   - {fileID: 531870487525511009, guid: 79ad74a186520924b896ebdf6909fbc9, type: 3}
   - {fileID: 3948543142823060059, guid: 340e048b0b64e4047baa1cdce4c4cbdb, type: 3}
-  bannerPrefab: {fileID: 1452962346023821469, guid: e69494a34e9d3c941acc6813432265b6, type: 3}
+  rollPrefabs:
+  - {fileID: 354047199372924529, guid: 7fb21b30d23780a4ab14e091f55134bc, type: 3}
+  - {fileID: 7158389376137531778, guid: 82036a3091af22c44a5bd4d6da00863c, type: 3}
   movePrefabs:
   - {fileID: 1222735372918739602, guid: cdd8ce936ec87fc48b9dcd7467ba2334, type: 3}
   - {fileID: 1222735372918739602, guid: 746747c9ce5e91a438fafaceb4021728, type: 3}
@@ -2429,9 +2431,13 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   target: {fileID: 0}
   lookTarget: {fileID: 2065437542}
+  chaserSystem: {fileID: 0}
+  camObj: {fileID: 0}
   localOffset: {x: 0, y: 1.6, z: 0}
   lookHeight: 1.5
   followSharpness: 12
+  dangerDistanceThreshold: 0.5
+  minOnTime: 0.35
 --- !u!1 &1732470097
 GameObject:
   m_ObjectHideFlags: 0

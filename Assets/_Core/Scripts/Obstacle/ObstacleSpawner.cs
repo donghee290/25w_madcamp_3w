@@ -8,8 +8,8 @@ public class ObstacleSpawner : MonoBehaviour
     public GameManager gameManager;
 
     [Header("Prefabs (set in Inspector)")]
-    public GameObject[] jumpPrefabs;     // Desk (Jump)
-    public GameObject bannerPrefab;   // Banner (Roll)
+    public GameObject[] jumpPrefabs;        // Desk (Jump)
+    public GameObject[] rollPrefabs;        // Banner (Roll)  ✅ 여러 개로 변경
     public GameObject[] movePrefabs;
 
     [Header("Spawn Space")]
@@ -138,17 +138,18 @@ public class ObstacleSpawner : MonoBehaviour
         if (r == 0 && jumpPrefabs != null && jumpPrefabs.Length > 0)
             return jumpPrefabs[Random.Range(0, jumpPrefabs.Length)];
 
-        if (r == 1 && bannerPrefab != null) return bannerPrefab;
+        // ✅ Roll: 단일 bannerPrefab -> rollPrefabs 배열 랜덤
+        if (r == 1 && rollPrefabs != null && rollPrefabs.Length > 0)
+            return rollPrefabs[Random.Range(0, rollPrefabs.Length)];
 
         if (movePrefabs != null && movePrefabs.Length > 0)
             return movePrefabs[Random.Range(0, movePrefabs.Length)];
 
         // fallback
         if (jumpPrefabs != null && jumpPrefabs.Length > 0) return jumpPrefabs[0];
-        if (bannerPrefab != null) return bannerPrefab;
+        if (rollPrefabs != null && rollPrefabs.Length > 0) return rollPrefabs[0];
         return null;
     }
-
 
     GameObject RandomSingleLaneMovePrefab()
     {
