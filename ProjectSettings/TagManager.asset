@@ -3,21 +3,18 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 2
-  tags:
-  - Obstacle
-  - Item
-  - Global Resource
+  tags: []
   layers:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - Ground
+  - 
   - Water
   - UI
-  - Obstacle
-  - Chaser
-  - Player
-  - Character
+  - 
+  - 
+  - Gold
+  - 
   - 
   - 
   - 
