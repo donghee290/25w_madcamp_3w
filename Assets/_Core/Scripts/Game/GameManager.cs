@@ -73,7 +73,7 @@ public class GameManager : MonoBehaviour
         EnsurePlayerMotor();
         if (playerMotor == null) return;
 
-        distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime * 0.1f;
+        distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime;
     }
 
     public void GameOver(GameOverReason reason)
