@@ -6,16 +6,16 @@ public class ObstacleSpawner : MonoBehaviour
     public Transform player;      // Player Transform
     public PlayerMotor playerMotor;
     public GameManager gameManager;
+    public SpawnsRoot spawnsRoot; // 추가.
 
     [Header("Prefabs (set in Inspector)")]
     public GameObject[] jumpPrefabs;        // Desk (Jump)
-    public GameObject[] rollPrefabs;        // Banner (Roll)  ✅ 여러 개로 변경
+    public GameObject[] rollPrefabs;        // Banner (Roll)
     public GameObject[] movePrefabs;
 
     [Header("Spawn Space")]
     public float spawnZOffset = 35f;
     public float laneWidth = 1.2f;
-    public float cleanupBehindZ = 10f;
 
     [Header("World Y per obstacle (IMPORTANT)")]
     [Tooltip("책상(바닥 장애물) 생성 높이")]
@@ -42,6 +42,9 @@ public class ObstacleSpawner : MonoBehaviour
     void Start()
     {
         if (gameManager == null) gameManager = GameManager.I;
+        if (spawnsRoot == null) spawnsRoot = FindFirstObjectByType<SpawnsRoot>();
+        if (spawnsRoot != null && spawnsRoot.player == null && player != null) spawnsRoot.player = player;
+
         nextSpawnAt = 0.5f;
     }
 
@@ -49,6 +52,7 @@ public class ObstacleSpawner : MonoBehaviour
     {
         if (player == null) return;
         if (gameManager != null && gameManager.State != GameState.Playing) return;
+        if (spawnsRoot == null) return;
 
         t += Time.deltaTime;
 
@@ -58,7 +62,7 @@ public class ObstacleSpawner : MonoBehaviour
             nextSpawnAt = t + CurrentInterval();
         }
 
-        CleanupOldObstacles();
+        // CleanupOldObstacles() 삭제: SpawnsRoot가 관리/정리
     }
 
     float CurrentInterval()
@@ -95,12 +99,10 @@ public class ObstacleSpawner : MonoBehaviour
 
     void SpawnDouble()
     {
-        // 서로 다른 두 레인 선택(-1,0,1)
         int laneA = RandomLane();
         int laneB = laneA;
         while (laneB == laneA) laneB = RandomLane();
 
-        // span==1인 프리팹만 뽑기 (최대 N번 시도 후 실패하면 종료)
         const int maxTries = 20;
         GameObject prefab = null;
 
@@ -138,34 +140,15 @@ public class ObstacleSpawner : MonoBehaviour
         if (r == 0 && jumpPrefabs != null && jumpPrefabs.Length > 0)
             return jumpPrefabs[Random.Range(0, jumpPrefabs.Length)];
 
-        // ✅ Roll: 단일 bannerPrefab -> rollPrefabs 배열 랜덤
         if (r == 1 && rollPrefabs != null && rollPrefabs.Length > 0)
             return rollPrefabs[Random.Range(0, rollPrefabs.Length)];
 
         if (movePrefabs != null && movePrefabs.Length > 0)
             return movePrefabs[Random.Range(0, movePrefabs.Length)];
 
-        // fallback
         if (jumpPrefabs != null && jumpPrefabs.Length > 0) return jumpPrefabs[0];
         if (rollPrefabs != null && rollPrefabs.Length > 0) return rollPrefabs[0];
         return null;
-    }
-
-    GameObject RandomSingleLaneMovePrefab()
-    {
-        if (movePrefabs == null) return null;
-
-        // span==1만 후보
-        var candidates = new System.Collections.Generic.List<GameObject>();
-        foreach (var p in movePrefabs)
-        {
-            if (p == null) continue;
-            var m = p.GetComponent<ObstacleMarker>();
-            int span = (m != null) ? m.laneSpan : 1;
-            if (span == 1) candidates.Add(p);
-        }
-        if (candidates.Count == 0) return null;
-        return candidates[Random.Range(0, candidates.Count)];
     }
 
     void Spawn(GameObject prefab, int lane)
@@ -175,7 +158,6 @@ public class ObstacleSpawner : MonoBehaviour
         var marker = prefab.GetComponent<ObstacleMarker>();
         int span = (marker != null) ? Mathf.Clamp(marker.laneSpan, 1, 3) : 1;
 
-        // span에 따른 lane/x 결정
         float x;
         if (span == 3)
         {
@@ -184,39 +166,27 @@ public class ObstacleSpawner : MonoBehaviour
         }
         else if (span == 2)
         {
-            // (-1,0) 또는 (0,1) 페어만 가능
             lane = (Random.value < 0.5f) ? -1 : 0;
             float centerLane = (lane == -1) ? -0.5f : 0.5f;
             x = centerLane * laneWidth;
         }
         else
         {
-            // span == 1
             x = lane * laneWidth;
         }
 
         float z = player.position.z + spawnZOffset;
 
-        // 타입 기준으로 Y 결정
         float y;
         if (marker != null && marker.type == ObstacleType.Jump) y = deskWorldY;
         else if (marker != null && marker.type == ObstacleType.Roll) y = bannerWorldY;
         else y = lockerWorldY;
 
         Vector3 pos = new Vector3(x, y, z);
-        GameObject go = Instantiate(prefab, pos, prefab.transform.rotation);
+
+        GameObject go = spawnsRoot.SpawnObstacle(prefab, pos, prefab.transform.rotation);
+        if (go == null) return;
+
         go.name = $"{prefab.name}_span{span}_lane{lane}_{(int)t}s";
-    }
-
-    void CleanupOldObstacles()
-    {
-        var obs = GameObject.FindGameObjectsWithTag("Obstacle");
-        float destroyZ = player.position.z - cleanupBehindZ;
-
-        foreach (var o in obs)
-        {
-            if (o.transform.position.z < destroyZ)
-                Destroy(o);
-        }
     }
 }
