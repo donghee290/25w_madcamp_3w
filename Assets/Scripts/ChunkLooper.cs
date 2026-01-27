@@ -351,6 +351,9 @@ public class ChunkLooper : MonoBehaviour
 
     void PlaceWallProps(GameObject chunk)
     {
+        if (Time.time < PlayerMotor.SafeUntilTime)
+            return;
+
         if (chunk == null) return;
 
         var slots = new List<Transform>(16);
