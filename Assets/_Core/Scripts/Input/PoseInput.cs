@@ -12,8 +12,8 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     /* ================= LANE (Body Left/Right) ================= */
     [Header("Lane (Body Left/Right)")]
     public float laneDeadZone = 0.06f;
-    public float laneStrongThreshold = 0.16f;
-    public float laneHoldSeconds = 0.10f;
+    public float laneStrongThreshold = 0.06f;
+    public float laneHoldSeconds = 0.001f;
     public bool mirrorX = false;
 
     /* ================= JUMP (Hands Up) ================= */
@@ -25,20 +25,33 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
     /* ================= ROLL (Bend + Hands Below Hip) ================= */
     [Header("Roll (Bend + Hands Below Hip)")]
-    public float wristBelowHipMargin = 0.08f;
-    public float torsoCloseThreshold = 0.22f;
+    public float wristBelowHipMargin = 0.02f;
+    public float torsoCloseThreshold = 0.3f;
     public int rollFramesRequired = 2;
-    public float rollHoldSeconds = 0.22f;   // 달릴 때도 확실히 잡히게 약간 늘림
-    public float rollCooldown = 0.45f;      // 너무 길면 답답해서 줄임
+    public float rollHoldSeconds = 0.1f;   // 달릴 때도 확실히 잡히게 약간 늘림
+    public float rollCooldown = 0.7f;      // 너무 길면 답답해서 줄임
 
     /* ================= MOVE (Shoulder Y Motion Energy) ================= */
     [Header("MoveLevel 0~1 (Shoulder Y energy)")]
-    public float shoulderDeltaDeadzone = 0.0008f;
+    public float shoulderDeltaDeadzone = 0f;
     public float walkThreshold = 0.001f;      // 0 근처
-    public float runThreshold = 0.0020f;     // RUN 쉽게(낮을수록 쉬움)
-    public float energySmoothing = 25f;
-    public float moveLevelSmoothing = 12f;
-    public float moveCurve = 1.35f;           // 작을수록 상단(달리기) 빨리 붙음
+    public float runThreshold = 0.003f;     // RUN 쉽게(낮을수록 쉬움)
+    public float energySmoothing = 20f;
+    public float moveLevelSmoothing = 10f;
+    public float moveCurve = 1.8f;           // 작을수록 상단(달리기) 빨리 붙음
+
+    /* ================= FLY (Arms Out + Flap) ================= */
+    [Header("Fly (Arms Out + Flap)")]
+    public float armsOutMinX = 0.18f;          // 손목이 어깨 중심보다 좌/우로 이만큼 이상 벌어지면 "펼침"
+    public float wristNearShoulderY = 0.10f;   // 손목이 어깨 Y 근처(±)면 "수평"
+    public float flapSpeedThreshold = 0.015f;  // 손목 Y 변화 속도(초당) 임계값
+    public int flapFramesRequired = 2;         // 연속 프레임 조건
+    public float flyHoldSeconds = 0.12f;       // FlyForward를 트리거처럼 짧게 유지(원하면 0.2~0.3)
+
+    private float _prevLWY, _prevRWY;
+    private bool _hasPrevWrists = false;
+    private int _flapFrames = 0;
+    private float _flyHold = 0f;
 
     /* ================= Debug ================= */
     [Header("Debug")]
@@ -111,6 +124,8 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         float hipY = (lHip.y + rHip.y) * 0.5f;
         shYDebug = shY;
         hipYDebug = hipY;
+
+        
 
         /* ================= LANE ================= */
         float centerX = (lSh.x + rSh.x) * 0.5f;

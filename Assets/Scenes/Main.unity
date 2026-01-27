@@ -916,24 +916,29 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   laneDeadZone: 0.06
-  laneStrongThreshold: 0.16
-  laneHoldSeconds: 0.1
+  laneStrongThreshold: 0.06
+  laneHoldSeconds: 0.001
   mirrorX: 0
   handsUpMargin: 0.03
   jumpCooldown: 0.6
   handsUpFramesRequired: 2
   jumpHoldSeconds: 0.12
-  wristBelowHipMargin: 0.08
-  torsoCloseThreshold: 0.22
+  wristBelowHipMargin: 0.02
+  torsoCloseThreshold: 0.3
   rollFramesRequired: 2
-  rollHoldSeconds: 0.22
-  rollCooldown: 0.45
-  shoulderDeltaDeadzone: 0.0008
+  rollHoldSeconds: 0.1
+  rollCooldown: 0.7
+  shoulderDeltaDeadzone: 0
   walkThreshold: 0.001
-  runThreshold: 0.002
-  energySmoothing: 25
-  moveLevelSmoothing: 12
-  moveCurve: 1.35
+  runThreshold: 0.003
+  energySmoothing: 20
+  moveLevelSmoothing: 10
+  moveCurve: 1.8
+  armsOutMinX: 0.18
+  wristNearShoulderY: 0.1
+  flapSpeedThreshold: 0.015
+  flapFramesRequired: 2
+  flyHoldSeconds: 0.12
   hasLandmarksDebug: 0
   shYDebug: 0
   hipYDebug: 0
@@ -3369,9 +3374,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6441e0e2530c7be45bb3d271a8b44ed1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  chaserSystem: {fileID: 2065437540}
-  previewRawImage: {fileID: 2116446717}
-  dangerThreshold: 0.5
 --- !u!1 &2132249510
 GameObject:
   m_ObjectHideFlags: 0
