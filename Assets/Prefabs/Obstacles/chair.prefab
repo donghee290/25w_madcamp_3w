@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 6967768761389844705}
   - component: {fileID: 2610131295117326203}
   - component: {fileID: 413831133451668207}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: chair
   m_TagString: Obstacle
   m_Icon: {fileID: 0}

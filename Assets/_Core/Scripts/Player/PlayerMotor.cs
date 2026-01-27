@@ -52,24 +52,34 @@ public class PlayerMotor : MonoBehaviour
     private float coyoteTimer = 0f;
 
     [Header("Fly")]
-    [Tooltip("비행 목표 높이 = flyBaseY + flyLiftY")]
-    public float flyLiftY = 0f;
-    public float flyLerp = 10f;
-    public float flyMaxUpSpeed = 6f;
+    [Tooltip("비행 목표 높이(지면 기준)")]
+    public float flyLiftY = 2.4f;
 
-    [Header("Fly Collision")]
-    [Tooltip("비행 중에는 슬라이드/센터 로직을 끄고, 이 센터를 유지합니다.")]
-    public float flyColliderCenterY = 2.6f;
+    [Tooltip("올라갈 때 속도")]
+    public float flyUpSpeed = 6f;
+
+    [Tooltip("내려올 때 속도")]
+    public float flyDownSpeed = 10f;
+
+    [Tooltip("프레임당 최대 상승량(튐/천장박힘 완화)")]
+    public float flyMaxUpPerFrame = 0.25f;
+
+    [Tooltip("지면 탐색 거리(비행 높이 기준 계산에 사용)")]
+    public float flyGroundProbe = 3.0f;
 
     [Header("Fly (Immediate Safety)")]
     [Tooltip("아이템을 먹는 순간, 같은 프레임에 위로 올려서 즉시 장애물 무력화")]
-    public float flyImmediateStepY = 2.2f;
+    public float flyImmediateStepY = 1.2f;
 
     [Tooltip("아이템 먹고 아주 짧은 시간 장애물 충돌 무시(죽는 판정 방지)")]
-    public float flyGraceSec = 0.25f;
+    public float flyGraceSec = 0.6f;
 
-    [Tooltip("없어도 됨. 있으면 Obstacle 레이어 대신 이 마스크의 레이어들과만 충돌 무시를 적용할 수 있습니다(미구현).")]
+    [Tooltip("없어도 됨. 있으면 Obstacle 레이어 대신 이 마스크의 레이어들과만 충돌 무시를 적용할 수 있습니다.")]
     public LayerMask obstacleMask;
+
+    [Header("StepOffset Patch (anti tiny lift)")]
+    [Tooltip("비행 중 stepOffset을 낮춰 '턱 올라타기' 방지 (0.1 이하 추천)")]
+    public float flyStepOffset = 0.05f;
 
     private CharacterController cc;
     private float currentX;
@@ -80,11 +90,14 @@ public class PlayerMotor : MonoBehaviour
 
     // ===== Fly runtime =====
     private bool isFlying = false;
-    private float flyBaseY = 0f;
+
+    // flyGroundY: 비행 시작 시점 지면 y(복귀용)
+    private float flyGroundY = 0f;
+
     private Coroutine flyGraceCo;
 
     public bool IsFlying => isFlying;
-    public bool IsRolling => input != null && input.RollHeld && !isFlying; // Fly 중 롤 입력은 기능적으로 무시
+    public bool IsRolling => input != null && input.RollHeld && !isFlying;
     public bool IsAirborne => !isGroundedCached;
     public float CurrentForwardSpeed => forwardSpeed;
 
@@ -95,13 +108,20 @@ public class PlayerMotor : MonoBehaviour
     private Vector3 visualLocalPos0;
     private Quaternion visualLocalRot0;
 
+    public static float SafeUntilTime = 0f;
+
+    private bool obstacleIgnored = false;
+    private float defaultStepOffset = 0f;
+
     void Awake()
     {
         cc = GetComponent<CharacterController>();
+        defaultStepOffset = cc.stepOffset; // ✅ 원본 저장
 
         ResolveInput();
         ResolveAnimator();
 
+        // 초기값
         cc.height = normalHeight;
         cc.center = new Vector3(0, cc.height * 0.5f, 0);
 
@@ -160,13 +180,12 @@ public class PlayerMotor : MonoBehaviour
 
     void SnapToGroundOnce()
     {
-        Vector3 foot = GetFootWorldPos();
-        Vector3 origin = foot + Vector3.up * 2f;
-
+        Vector3 origin = transform.position + Vector3.up * 2f;
         if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask, QueryTriggerInteraction.Ignore))
         {
-            float delta = hit.point.y - foot.y;
-            transform.position += new Vector3(0, delta, 0);
+            cc.enabled = false;
+            transform.position = new Vector3(transform.position.x, hit.point.y, transform.position.z);
+            cc.enabled = true;
         }
     }
 
@@ -184,11 +203,68 @@ public class PlayerMotor : MonoBehaviour
         return Physics.Raycast(origin, Vector3.down, out RaycastHit _, groundRayLength, groundMask, QueryTriggerInteraction.Ignore);
     }
 
+    float GetGroundY(out bool hitGround)
+    {
+        hitGround = false;
+
+        Vector3 origin = transform.position + Vector3.up * 1.0f;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, flyGroundProbe, groundMask, QueryTriggerInteraction.Ignore))
+        {
+            hitGround = true;
+            return hit.point.y;
+        }
+        return transform.position.y;
+    }
+
+    float GetGroundYOrCurrent()
+    {
+        Vector3 origin = transform.position + Vector3.up * 2f;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask, QueryTriggerInteraction.Ignore))
+            return hit.point.y;
+        return transform.position.y;
+    }
+
+    bool HasCeiling(float up)
+    {
+        Vector3 origin = transform.position + Vector3.up * 0.1f;
+        return Physics.Raycast(origin, Vector3.up, up + 0.2f, groundMask, QueryTriggerInteraction.Ignore);
+    }
+
+    void SetObstacleCollisionIgnored(bool ignore)
+    {
+        if (obstacleIgnored == ignore) return;
+        obstacleIgnored = ignore;
+
+        int playerLayer = gameObject.layer;
+
+        // obstacleMask 지정 안 했으면 "Obstacle" 레이어만 처리
+        if (obstacleMask.value == 0)
+        {
+            int obstacleLayer = LayerMask.NameToLayer("Obstacle");
+            if (obstacleLayer >= 0)
+                Physics.IgnoreLayerCollision(playerLayer, obstacleLayer, ignore);
+            return;
+        }
+
+        // obstacleMask 지정했으면 해당 마스크의 레이어 전체 처리
+        for (int layer = 0; layer < 32; layer++)
+        {
+            if ((obstacleMask.value & (1 << layer)) != 0)
+                Physics.IgnoreLayerCollision(playerLayer, layer, ignore);
+        }
+    }
+
+    IEnumerator ReenableObstacleCollisionAfter(float sec)
+    {
+        yield return new WaitForSeconds(sec);
+        SetObstacleCollisionIgnored(false);
+        flyGraceCo = null;
+    }
+
     void Update()
     {
         if (GameManager.I != null && GameManager.I.State != GameState.Playing)
         {
-            // 정지 상태면 파라미터만 Idle로 고정 + Fly 해제
             if (anim != null)
             {
                 if (!string.IsNullOrEmpty(paramMoveLevel)) anim.SetFloat(paramMoveLevel, 0f);
@@ -202,7 +278,9 @@ public class PlayerMotor : MonoBehaviour
         if (input == null) return;
         if (anim != null && anim.applyRootMotion) anim.applyRootMotion = false;
 
-        // Ground는 Fly 중엔 false로 고정
+        float dt = Time.deltaTime;
+
+        // Ground는 Fly 중엔 false로 고정(애니 파라미터용)
         bool grounded = isFlying ? false : IsGroundedRay();
         isGroundedCached = grounded;
 
@@ -216,8 +294,8 @@ public class PlayerMotor : MonoBehaviour
             }
             else
             {
-                coyoteTimer -= Time.deltaTime;
-                verticalVel += gravity * Time.deltaTime;
+                coyoteTimer -= dt;
+                verticalVel += gravity * dt;
             }
         }
         else
@@ -231,7 +309,6 @@ public class PlayerMotor : MonoBehaviour
         bool rollStarted = rollHeld && !prevRollHeld;
         prevRollHeld = rollHeld;
 
-        // 점프(롤 중 점프 금지) - Fly 중 금지
         if (!isFlying && coyoteTimer > 0f && input.JumpTriggered && !rollHeld)
         {
             verticalVel = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -241,26 +318,25 @@ public class PlayerMotor : MonoBehaviour
                 anim.SetTrigger(trigJump);
         }
 
-        // 레인 이동( Fly 중에도 가능 )
+        // 레인 이동
         int lane = Mathf.Clamp(input.Lane, -1, 1);
         float targetX = lane * laneWidth;
-        currentX = Mathf.Lerp(currentX, targetX, Time.deltaTime * laneMoveSpeed);
+        currentX = Mathf.Lerp(currentX, targetX, dt * laneMoveSpeed);
 
-        // 전진 속도 (WingsBuff에서 runSpeed/walkSpeed 올리면 자동 반영)
+        // 전진 속도
         float r = Mathf.Clamp01(input.MoveLevel);
         float targetSpeed =
             (r >= 0.75f) ? runSpeed :
             (r >= 0.25f) ? walkSpeed :
             stopSpeed;
 
-        forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, Time.deltaTime * speedLerp);
+        forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, dt * speedLerp);
 
         // ===== 충돌 캡슐 세팅 =====
-        // (중요) Fly 중에는 슬라이드 로직이 cc.center를 덮어쓰지 못하도록 분기
         if (!isFlying)
         {
             float desiredHeight = rollHeld ? slideHeight : normalHeight;
-            cc.height = Mathf.Lerp(cc.height, desiredHeight, Time.deltaTime * slideLerp);
+            cc.height = Mathf.Lerp(cc.height, desiredHeight, dt * slideLerp);
             cc.center = new Vector3(0, cc.height * 0.5f, 0);
 
             if (rollStarted)
@@ -272,165 +348,146 @@ public class PlayerMotor : MonoBehaviour
         else
         {
             cc.height = normalHeight;
-            cc.center = new Vector3(0, flyColliderCenterY, 0);
+            cc.center = new Vector3(0, cc.height * 0.5f, 0);
         }
 
-        // 이동 벡터
+        // ===== 이동 =====
         Vector3 move = Vector3.zero;
 
+        // x
         float dx = currentX - transform.position.x;
-        move.x = Mathf.Clamp(dx, -laneMoveSpeed * Time.deltaTime, laneMoveSpeed * Time.deltaTime);
+        move.x = Mathf.Clamp(dx, -laneMoveSpeed * dt, laneMoveSpeed * dt);
 
-        move.z = forwardSpeed * Time.deltaTime;
+        // z
+        move.z = forwardSpeed * dt;
 
+        // y
         if (!isFlying)
         {
-            move.y = verticalVel * Time.deltaTime;
+            move.y = verticalVel * dt;
         }
         else
         {
-            float targetY = flyBaseY + flyLiftY;
-            float dy = targetY - transform.position.y;
+            float targetY = flyGroundY + flyLiftY;
+            float diff = targetY - transform.position.y;
 
-            float step = Mathf.Clamp(
-                dy * flyLerp * Time.deltaTime,
-                -flyMaxUpSpeed * Time.deltaTime,
-                flyMaxUpSpeed * Time.deltaTime
-            );
+            float speed = diff > 0f ? flyUpSpeed : flyDownSpeed;
+            float step = Mathf.Clamp(diff, -speed * dt, speed * dt);
+
+            if (step > 0f) step = Mathf.Min(step, flyMaxUpPerFrame);
+            if (step > 0f && HasCeiling(step)) step = 0f;
+
             move.y = step;
         }
 
         cc.Move(move);
 
-        if (GameManager.I != null && GameManager.I.State != GameState.Playing)
+        if (debugLogs && isFlying && Time.frameCount % 15 == 0)
         {
-            ForceStopToIdle();
-            return;
+            bool hitGround;
+            float gy = GetGroundY(out hitGround);
+            float targetY = hitGround ? (gy + flyLiftY) : transform.position.y;
+            Debug.Log($"[FLY] y={transform.position.y:F2} groundY={(hitGround ? gy : -999f):F2} lift={flyLiftY:F2} targetY={targetY:F2} ccCenterY={cc.center.y:F2} ccH={cc.height:F2}");
         }
 
         // 애니 파라미터
         if (anim != null)
         {
-            if (!string.IsNullOrEmpty(paramIsGrounded))
-                anim.SetBool(paramIsGrounded, grounded);
-
-            if (!string.IsNullOrEmpty(paramMoveLevel))
-                anim.SetFloat(paramMoveLevel, r);
-
-            if (!string.IsNullOrEmpty(paramIsFlying))
-                anim.SetBool(paramIsFlying, isFlying);
+            if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, grounded);
+            if (!string.IsNullOrEmpty(paramMoveLevel)) anim.SetFloat(paramMoveLevel, r);
+            if (!string.IsNullOrEmpty(paramIsFlying)) anim.SetBool(paramIsFlying, isFlying);
         }
     }
 
     void LateUpdate()
     {
         if (visualRoot == null) return;
-
-        // Fly 중에는 비주얼 포지션 고정하지 말기 (뜬 연출이 안 보일 수 있음)
-        if (isFlying) return;
-
         visualRoot.localPosition = visualLocalPos0;
         visualRoot.localRotation = visualLocalRot0;
     }
 
     // ===== Public API for Wings =====
 
-    /// <summary>
-    /// 일반적인 Fly 토글(즉시 상승/무적 윈도우 없음)
-    /// </summary>
     public void SetFlying(bool on, float liftY = -1f)
     {
         if (on)
         {
-            flyBaseY = transform.position.y;
+            // 혹시 착지 후 복구 코루틴 돌고 있으면 끊기
+            if (flyGraceCo != null) { StopCoroutine(flyGraceCo); flyGraceCo = null; }
+
+            flyGroundY = GetGroundYOrCurrent();
+
             isFlying = true;
             verticalVel = 0f;
             coyoteTimer = 0f;
 
             if (liftY > 0f) flyLiftY = liftY;
+
+            // ✅ 비행 중: 장애물 충돌 무시 + stepOffset 낮추기
+            SetObstacleCollisionIgnored(true);
+            if (cc != null) cc.stepOffset = Mathf.Min(flyStepOffset, 0.1f);
+
+            SafeUntilTime = Mathf.Max(SafeUntilTime, Time.time + 0.1f);
         }
         else
         {
             isFlying = false;
-            verticalVel = 0f;
             coyoteTimer = 0f;
+            verticalVel = -2f;
 
-            // 캡슐 원복은 Update에서 !isFlying 분기에서 자동 처리됨
+            // ✅ 착지: stepOffset 원복
+            if (cc != null) cc.stepOffset = defaultStepOffset;
+
+            if (cc != null)
+            {
+                cc.enabled = false;
+                transform.position = new Vector3(transform.position.x, flyGroundY, transform.position.z);
+                cc.enabled = true;
+            }
+            SnapToGroundOnce();
+
+            // 착지 직후 3초도 계속 무시 유지(바로 장애물 나오면 억까 방지)
+            SafeUntilTime = Mathf.Max(SafeUntilTime, Time.time + 3.0f);
+
+            if (flyGraceCo != null) StopCoroutine(flyGraceCo);
+            flyGraceCo = StartCoroutine(ReenableObstacleCollisionAfter(3.0f));
         }
-
-        if (anim != null && !string.IsNullOrEmpty(paramIsFlying))
-            anim.SetBool(paramIsFlying, isFlying);
     }
 
     public void StartFlyingImmediate(float liftY = -1f, float immediateStepY = -1f, float graceSec = -1f)
     {
-        // 값 기본 처리
+        // 기존 코루틴 정리
+        if (flyGraceCo != null) { StopCoroutine(flyGraceCo); flyGraceCo = null; }
+
         if (liftY > 0f) flyLiftY = liftY;
         float stepY = immediateStepY > 0f ? immediateStepY : flyImmediateStepY;
-        float gSec = graceSec > 0f ? graceSec : flyGraceSec;
 
-        // Fly ON
-        flyBaseY = transform.position.y;
+        flyGroundY = GetGroundYOrCurrent();
+
         isFlying = true;
         verticalVel = 0f;
         coyoteTimer = 0f;
 
-        Debug.Log($"[FlyImmediate] BEFORE rootY={transform.position.y} stepY={stepY} liftY={flyLiftY}");
+        // ✅ 즉시 비행도 동일하게: 장애물 무시 + stepOffset 낮추기
+        SetObstacleCollisionIgnored(true);
+        if (cc != null) cc.stepOffset = Mathf.Min(flyStepOffset, 0.1f);
 
-        // 슬라이드 상태였다면 즉시 정상화
+        // 롤 상태든 뭐든 Fly 시작 순간 캡슐을 정상화(필수)
         cc.height = normalHeight;
         cc.center = new Vector3(0, cc.height * 0.5f, 0);
 
-        // 1) 같은 프레임에 즉시 위로 이동(장애물 바로 앞에서 먹어도 살아남게)
-        cc.enabled = false;
-        transform.position += new Vector3(0f, stepY, 0f);
-        cc.enabled = true;
+        // 같은 프레임 즉시 상승(천장 있으면 상승 안 함)
+        if (stepY > 0f && !HasCeiling(stepY))
+        {
+            cc.enabled = false;
+            transform.position += new Vector3(0f, stepY, 0f);
+            cc.enabled = true;
+        }
 
-        Debug.Log($"[FlyImmediate] AFTER  rootY={transform.position.y}");
-
-        // 즉시 상승이 반영된 위치를 Fly 기준으로 다시 설정 (중요)
-        flyBaseY = transform.position.y;
-
-        // 2) 애니 전환(이동 이후)
         if (anim != null && !string.IsNullOrEmpty(paramIsFlying))
             anim.SetBool(paramIsFlying, true);
 
-        // 3) 짧은 무력화(레이어 충돌 무시)
-        if (gSec > 0f)
-        {
-            if (flyGraceCo != null) StopCoroutine(flyGraceCo);
-            flyGraceCo = StartCoroutine(FlyGraceCoroutine(gSec));
-        }
-    }
-
-    IEnumerator FlyGraceCoroutine(float sec)
-    {
-        int playerLayer = gameObject.layer;
-        int obstacleLayer = LayerMask.NameToLayer("Obstacle");
-
-        if (obstacleLayer >= 0)
-        {
-            Physics.IgnoreLayerCollision(playerLayer, obstacleLayer, true);
-            yield return new WaitForSeconds(sec);
-            Physics.IgnoreLayerCollision(playerLayer, obstacleLayer, false);
-        }
-        else
-        {
-            yield return new WaitForSeconds(sec);
-        }
-
-        flyGraceCo = null;
-    }
-
-    float GetGroundYOrCurrent()
-    {
-        Vector3 foot = GetFootWorldPos();
-        Vector3 origin = foot + Vector3.up * 2f;
-
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask, QueryTriggerInteraction.Ignore))
-            return hit.point.y;
-
-        return transform.position.y;
+        SafeUntilTime = Mathf.Max(SafeUntilTime, Time.time + 0.1f);
     }
 
     // ===== Utility =====
@@ -442,6 +499,10 @@ public class PlayerMotor : MonoBehaviour
         coyoteTimer = 0f;
 
         isFlying = false;
+
+        // ✅ 혹시 남아있으면 원복
+        SetObstacleCollisionIgnored(false);
+        if (cc != null) cc.stepOffset = defaultStepOffset;
 
         cc.height = normalHeight;
         cc.center = new Vector3(0, cc.height * 0.5f, 0);

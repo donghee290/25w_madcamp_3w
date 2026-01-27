@@ -10,6 +10,11 @@ public class WingsBuffController : MonoBehaviour
     public float speedMultiplier = 1.5f;
     public float durationSec = 10f;
 
+    [Header("Fly Tuning")]
+    public float flyLiftY = 2.4f;
+    public float flyImmediateStepY = 0.4f;
+    public float flyGraceSec = 0.6f;
+
     Coroutine buffCo;
 
     float runSpeed0;
@@ -67,8 +72,8 @@ public class WingsBuffController : MonoBehaviour
         motor.walkSpeed = walkSpeed0 * speedMultiplier;
 
         // Fly ON
-        motor.StartFlyingImmediate();
-
+        motor.StartFlyingImmediate(flyLiftY, flyImmediateStepY, flyGraceSec);
+        Debug.Log($"[WingsBuff] applied liftY={motor.flyLiftY}");
         Debug.Log($"[WingsBuff] after StartFlyingImmediate y={motor.transform.position.y}");
 
         applied = true;
