@@ -3,27 +3,27 @@ using UnityEngine;
 public class ChaserSystem : MonoBehaviour
 {
     [Header("Refs")]
-    public PlayerMotor playerMotor;         // ÇÊ¼ö (PlayerRoot¿¡ ºÙÀº PlayerMotor)
-    public MonoBehaviour inputSource;       // KeyboardInput or PoseInput (IPlayerInput ±¸ÇöÃ¼)
+    public PlayerMotor playerMotor;         // ï¿½Ê¼ï¿½ (PlayerRootï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ PlayerMotor)
+    public MonoBehaviour inputSource;       // KeyboardInput or PoseInput (IPlayerInput ï¿½ï¿½ï¿½ï¿½Ã¼)
 
     private IPlayerInput input;
 
     [Header("Distance (meters)")]
     public float maxDistance = 10f;
-    public float initialDistance = 7f;      // 0 ¾Æ´Ô!
-    public float chaserDistance = 7f;       // ·±Å¸ÀÓ Ç¥½Ã¿ë
+    public float initialDistance = 7f;      // 0 ï¿½Æ´ï¿½!
+    public float chaserDistance = 7f;       // ï¿½ï¿½Å¸ï¿½ï¿½ Ç¥ï¿½Ã¿ï¿½
 
     [Header("Distance change per second")]
-    public float gainPerSec_Run = 0.2f;     // RUNÀÌ¸é È¸º¹(+)
-    public float losePerSec_Walk = 0.8f;    // WALKÀÌ¸é °¨¼Ò(-)
-    public float losePerSec_Stop = 1.6f;    // STOPÀÌ¸é ±Ş°¨(-)
+    public float gainPerSec_Run = 0.2f;     // RUNï¿½Ì¸ï¿½ È¸ï¿½ï¿½(+)
+    public float losePerSec_Walk = 0.8f;    // WALKï¿½Ì¸ï¿½ ï¿½ï¿½ï¿½ï¿½(-)
+    public float losePerSec_Stop = 1.6f;    // STOPï¿½Ì¸ï¿½ ï¿½Ş°ï¿½(-)
 
     [Header("MoveLevel thresholds")]
-    [Tooltip("ÀÌ °ª ÀÌ»óÀÌ¸é RUN")]
+    [Tooltip("ï¿½ï¿½ ï¿½ï¿½ ï¿½Ì»ï¿½ï¿½Ì¸ï¿½ RUN")]
     public float runThreshold = 0.7f;
 
-    [Tooltip("ÀÌ °ª ¹Ì¸¸ÀÌ¸é STOP")]
-    public float stopThreshold = 0.3f;      // ³ÊÈñ ÃÖÁ¾ ¹®¼­ ±âÁØ: 0.3
+    [Tooltip("ï¿½ï¿½ ï¿½ï¿½ ï¿½Ì¸ï¿½ï¿½Ì¸ï¿½ STOP")]
+    public float stopThreshold = 0.3f;      // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: 0.3
 
     [Header("Runtime")]
     public ChaserState chaserState = ChaserState.Far;
@@ -33,22 +33,19 @@ public class ChaserSystem : MonoBehaviour
 
     void Awake()
     {
-        // ½ÃÀÛ °Å¸® ¼¼ÆÃ
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ ï¿½ï¿½ï¿½ï¿½
         chaserDistance = Mathf.Clamp(initialDistance, 0f, maxDistance);
 
-        // player ÀÚµ¿ ¹ÙÀÎµù
+        // player ï¿½Úµï¿½ ï¿½ï¿½ï¿½Îµï¿½
         if (playerMotor == null)
             playerMotor = FindFirstObjectByType<PlayerMotor>();
 
-        // input ¹ÙÀÎµù: ¿ì¼± inputSource, ¾øÀ¸¸é playerMotor¿¡¼­ Ã£±â
+        // input ï¿½ï¿½ï¿½Îµï¿½: ï¿½ì¼± inputSource, ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ playerMotorï¿½ï¿½ï¿½ï¿½ Ã£ï¿½ï¿½
         if (inputSource != null && inputSource is IPlayerInput ii)
             input = ii;
 
         if (input == null && playerMotor != null)
         {
-            // PlayerMotor°¡ ºÙ¾îÀÖ´Â ¿ÀºêÁ§Æ®¿¡ KeyboardInput/PoseInputÀÌ °°ÀÌ ºÙ¾îÀÖ¾î¾ß ÇÔ
-            input = playerMotor.GetComponent<MonoBehaviour>() as IPlayerInput;
-            // À§ ÇÑ ÁÙÀº Àß ¸ø Ã£À» ¼ö ÀÖ¾î¼­ ¾Æ·¡Ã³·³ È®½ÇÇÏ°Ô ÇÑ¹ø ´õ °Ë»ö
             var monos = playerMotor.GetComponents<MonoBehaviour>();
             foreach (var m in monos)
             {
@@ -69,29 +66,45 @@ public class ChaserSystem : MonoBehaviour
         if (GameManager.I.State != GameState.Playing) return;
         if (playerMotor == null || input == null) return;
 
+        if (playerMotor != null && playerMotor.IsFlying)
+        {
+            // ë”°ë¼ì˜¤ê¸° ë¶ˆê°€: ê±°ë¦¬ íšŒë³µ or ê³ ì •
+            chaserDistance = Mathf.Min(maxDistance, chaserDistance + 2.0f * Time.deltaTime);
+            chaserState = ChaserState.Far;
+            return;
+        }
+
+        // ì°©ì§€ ì§í›„ ì•ˆì „ì‹œê°„ì—” ì¶”ê²© ì™„í™”(ê±°ë¦¬ íšŒë³µ or ê³ ì •)
+        if (Time.time < PlayerMotor.SafeUntilTime)
+        {
+            chaserDistance = Mathf.Min(maxDistance, chaserDistance + 2.0f * Time.deltaTime);
+            chaserState = ChaserState.Far;
+            return;
+        }
+
         float move = Mathf.Clamp01(input.MoveLevel);
 
-        // »óÅÂ ÆÇÁ¤
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         bool isRun = move >= runThreshold;
         bool isStop = move < stopThreshold;
         bool isWalk = !isRun && !isStop;
 
-        // °Å¸® º¯È­·® ¼±ÅÃ
+        // ï¿½Å¸ï¿½ ï¿½ï¿½È­ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         float deltaPerSec = 0f;
         if (isRun) deltaPerSec = +gainPerSec_Run;
         else if (isWalk) deltaPerSec = -losePerSec_Walk;
         else deltaPerSec = -losePerSec_Stop;
 
-        // °Å¸® ¾÷µ¥ÀÌÆ®
+        // ï¿½Å¸ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®
         chaserDistance += deltaPerSec * Time.deltaTime;
         chaserDistance = Mathf.Clamp(chaserDistance, 0f, maxDistance);
 
-        // »óÅÂ(¿¬Ãâ¿ë)
-        // Close ±âÁØÀº ³ÊÈñ°¡ UI·Î Á¤ÇÏ¸é µÊ. ÀÏ´Ü °£´ÜÈ÷ 30% ¹Ì¸¸ÀÌ¸é Close·Î.
+        // ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½)
+        // Close ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ UIï¿½ï¿½ ï¿½ï¿½ï¿½Ï¸ï¿½ ï¿½ï¿½. ï¿½Ï´ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 30% ï¿½Ì¸ï¿½ï¿½Ì¸ï¿½ Closeï¿½ï¿½.
         if (chaserDistance <= maxDistance * 0.3f) chaserState = ChaserState.Close;
         else chaserState = ChaserState.Far;
 
-        // ÆĞ¹è Á¶°Ç: °Å¸® 0ÀÌ¸é ÀâÈû
+        // ï¿½Ğ¹ï¿½ ï¿½ï¿½ï¿½ï¿½: ï¿½Å¸ï¿½ 0ï¿½Ì¸ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (chaserDistance <= 0f)
         {
             chaserState = ChaserState.Caught;
@@ -105,7 +118,7 @@ public class ChaserSystem : MonoBehaviour
         }
     }
 
-    // (¼±ÅÃ) ¿ÜºÎ¿¡¼­ ¸®¼Â È£Ãâ °¡´É
+    // (ï¿½ï¿½ï¿½ï¿½) ï¿½ÜºÎ¿ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ È£ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     public void ResetDistance()
     {
         chaserDistance = Mathf.Clamp(initialDistance, 0f, maxDistance);
