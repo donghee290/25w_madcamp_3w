@@ -5,20 +5,18 @@ using UnityEngine;
 public class PlayerMotor : MonoBehaviour
 {
     [Header("Input (required)")]
-    [Tooltip("IPlayerInput을 구현한 컴포넌트(KeyboardInput / PoseInput 등). 비우면 같은 오브젝트에서 자동으로 찾습니다.")]
     public MonoBehaviour inputSource;
     private IPlayerInput input;
 
     [Header("Animator (required)")]
-    [Tooltip("비우면 자식 포함 Animator 중 'Controller가 붙어있는 Animator'를 자동으로 찾아 연결합니다.")]
     public Animator anim;
 
     [Header("Animator Params (only existing ones)")]
-    public string paramMoveLevel = "MoveLevel";     // Float (0=Idle, 0.5=Walk, 1=Run)
-    public string paramIsGrounded = "IsGrounded";   // Bool
-    public string paramIsFlying = "IsFlying";       // Bool
-    public string trigJump = "Jump";                // Trigger
-    public string trigRoll = "Roll";                // Trigger
+    public string paramMoveLevel = "MoveLevel";
+    public string paramIsGrounded = "IsGrounded";
+    public string paramIsFlying = "IsFlying";
+    public string trigJump = "Jump";
+    public string trigRoll = "Roll";
 
     [Header("Lane")]
     public float laneWidth = 1.2f;
@@ -29,11 +27,7 @@ public class PlayerMotor : MonoBehaviour
     public float walkSpeed = 6f;
     public float stopSpeed = 0f;
 
-    [Header("Jump Feel")]
-    public float fallGravityMultiplier = 2.0f; // 내려올 때 중력 2배
-
-
-    [Tooltip("forwardSpeed가 targetSpeed를 따라가는 속도(클수록 빨리 반응)")]
+    [Tooltip("forwardSpeed가 targetSpeed를 따라가는 속도")]
     public float speedLerp = 8f;
 
     [Tooltip("현재 전진 속도(디버그/표시용)")]
@@ -43,15 +37,20 @@ public class PlayerMotor : MonoBehaviour
     public float jumpHeight = 2.5f;
     public float gravity = -15f;
 
+    [Header("Jump Feel")]
+    [Tooltip("하강 중 중력 배수(체공 줄이고 쫀득하게). 오래 떠있게 하고 싶으면 1.0~1.2")]
+    public float fallGravityMultiplier = 1.0f;
+
     [Header("Roll/Slide")]
     public float normalHeight = 1.8f;
     public float slideHeight = 0.9f;
     public float slideLerp = 20f;
 
-    [Header("Ground Check")]
+    [Header("Ground Check (Ray debug only)")]
     public float groundRayLength = 0.6f;
     public float groundRayStartUp = 0.05f;
-    public LayerMask groundMask = ~0;
+
+    [Header("Coyote Time")]
     public float coyoteTime = 0.12f;
     private float coyoteTimer = 0f;
 
@@ -69,21 +68,27 @@ public class PlayerMotor : MonoBehaviour
     public float flyMaxUpPerFrame = 0.25f;
 
     [Tooltip("지면 탐색 거리(비행 높이 기준 계산에 사용)")]
-    public float flyGroundProbe = 3.0f;
+    public float flyGroundProbe = 10.0f;
+
+    [Header("Fly Ceiling Clamp")]
+    [Tooltip("천장에 붙지 않게 여유값(미터)")]
+    public float flyCeilingMargin = 0.35f;
 
     [Header("Fly (Immediate Safety)")]
-    [Tooltip("아이템을 먹는 순간, 같은 프레임에 위로 올려서 즉시 장애물 무력화")]
-    public float flyImmediateStepY = 1.2f;
-
-    [Tooltip("아이템 먹고 아주 짧은 시간 장애물 충돌 무시(죽는 판정 방지)")]
     public float flyGraceSec = 0.6f;
 
     [Tooltip("없어도 됨. 있으면 Obstacle 레이어 대신 이 마스크의 레이어들과만 충돌 무시를 적용할 수 있습니다.")]
     public LayerMask obstacleMask;
 
     [Header("StepOffset Patch (anti tiny lift)")]
-    [Tooltip("비행 중 stepOffset을 낮춰 '턱 올라타기' 방지 (0.1 이하 추천)")]
     public float flyStepOffset = 0.05f;
+
+    [Header("Masks (IMPORTANT)")]
+    [Tooltip("바닥만 포함 (예: Default 또는 Ground). 천장/장애물 레이어 절대 포함 X")]
+    public LayerMask groundProbeMask;
+
+    [Tooltip("천장/상단 충돌용 (예: Ceiling 레이어만)")]
+    public LayerMask ceilingMask;
 
     private CharacterController cc;
     private float currentX;
@@ -94,10 +99,7 @@ public class PlayerMotor : MonoBehaviour
 
     // ===== Fly runtime =====
     private bool isFlying = false;
-
-    // flyGroundY: 비행 시작 시점 지면 y(복귀용)
     private float flyGroundY = 0f;
-
     private Coroutine flyGraceCo;
 
     public bool IsFlying => isFlying;
@@ -119,27 +121,28 @@ public class PlayerMotor : MonoBehaviour
 
     void Awake()
     {
-        if (groundMask.value == 0)
-        {
-            int groundLayer = LayerMask.NameToLayer("Ground");
-            groundMask = (groundLayer >= 0) ? (1 << groundLayer) : (1 << LayerMask.NameToLayer("Default"));
-            Debug.LogWarning($"[PlayerMotor] groundMask was Nothing. Auto-set to {groundMask.value}");
-        }
-
         cc = GetComponent<CharacterController>();
-        defaultStepOffset = cc.stepOffset; // ✅ 원본 저장
+        defaultStepOffset = cc.stepOffset;
 
         ResolveInput();
         ResolveAnimator();
 
-        // 초기값
         cc.height = normalHeight;
         cc.center = new Vector3(0, cc.height * 0.5f, 0);
 
         currentX = transform.position.x;
         verticalVel = 0f;
 
+        // groundProbeMask가 비어있으면 Default로 자동 보정(응급)
+        if (groundProbeMask.value == 0)
+        {
+            int defaultLayer = LayerMask.NameToLayer("Default");
+            groundProbeMask = (1 << defaultLayer);
+            Debug.LogWarning("[PlayerMotor] groundProbeMask was Nothing. Auto-set to Default.");
+        }
+
         SnapToGroundOnce();
+
         prevRollHeld = false;
 
         if (anim != null)
@@ -189,10 +192,12 @@ public class PlayerMotor : MonoBehaviour
         Debug.LogError("[PlayerMotor] Animator with controller not found.");
     }
 
+    // ===== Ground helpers =====
+
     void SnapToGroundOnce()
     {
         Vector3 origin = transform.position + Vector3.up * 2f;
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 20f, groundProbeMask, QueryTriggerInteraction.Ignore))
         {
             cc.enabled = false;
             transform.position = new Vector3(transform.position.x, hit.point.y, transform.position.z);
@@ -207,39 +212,87 @@ public class PlayerMotor : MonoBehaviour
         return transform.position + cc.center - Vector3.up * footOffset;
     }
 
+    // 디버그용
     bool IsGroundedRay()
     {
         Vector3 foot = GetFootWorldPos();
         Vector3 origin = foot + Vector3.up * groundRayStartUp;
-        return Physics.Raycast(origin, Vector3.down, out RaycastHit _, groundRayLength, groundMask, QueryTriggerInteraction.Ignore);
-    }
-
-    float GetGroundY(out bool hitGround)
-    {
-        hitGround = false;
-
-        Vector3 origin = transform.position + Vector3.up * 1.0f;
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, flyGroundProbe, groundMask, QueryTriggerInteraction.Ignore))
-        {
-            hitGround = true;
-            return hit.point.y;
-        }
-        return transform.position.y;
+        return Physics.Raycast(origin, Vector3.down, out _, groundRayLength, groundProbeMask, QueryTriggerInteraction.Ignore);
     }
 
     float GetGroundYOrCurrent()
     {
+        // ✅ "바닥"은 현재 y보다 위일 수 없다고 가정(천장/벽 오인 방지용 보정)
+        float curY = transform.position.y;
+
         Vector3 origin = transform.position + Vector3.up * 2f;
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 10f, groundMask, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 50f, groundProbeMask, QueryTriggerInteraction.Ignore))
+        {
+            // 바닥이 현재보다 위로 나오면(이상) 무시하고 현재 y 사용
+            if (hit.point.y > curY + 0.5f)
+                return curY;
+
             return hit.point.y;
-        return transform.position.y;
+        }
+        return curY;
     }
+
+    float FindGroundYForLanding()
+    {
+        // 1) groundProbeMask로 먼저 시도 (정석)
+        {
+            Vector3 origin = transform.position + Vector3.up * 2f;
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 100f,
+                                 groundProbeMask, QueryTriggerInteraction.Ignore))
+            {
+                return hit.point.y;
+            }
+        }
+
+        // 2) 그래도 못 찾으면: 전체 레이어에서 바닥 후보 탐색
+        {
+            Vector3 origin = transform.position + Vector3.up * 2f;
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 100f,
+                                 ~0, QueryTriggerInteraction.Ignore))
+            {
+                int hitLayerMask = 1 << hit.collider.gameObject.layer;
+                bool isCeiling =
+                    (ceilingMask.value != 0) &&
+                    ((ceilingMask.value & hitLayerMask) != 0);
+
+                // 위를 향한 면만 바닥으로 인정
+                if (!isCeiling && hit.normal.y > 0.6f)
+                    return hit.point.y;
+            }
+        }
+
+        // 3) 최후 안전장치: 현재 위치보다 아래로 강제
+        return transform.position.y - 2f;
+    }
+
 
     bool HasCeiling(float up)
     {
+        if (ceilingMask.value == 0) return false;
         Vector3 origin = transform.position + Vector3.up * 0.1f;
-        return Physics.Raycast(origin, Vector3.up, up + 0.2f, groundMask, QueryTriggerInteraction.Ignore);
+        return Physics.Raycast(origin, Vector3.up, up + 0.2f, ceilingMask, QueryTriggerInteraction.Ignore);
     }
+
+    float ClampTargetYByCeiling(float targetY)
+    {
+        if (ceilingMask.value == 0) return targetY;
+
+        // 머리 위쪽에서 천장까지 거리 재서 상한선 잡기
+        Vector3 origin = transform.position + Vector3.up * 0.1f;
+        if (Physics.Raycast(origin, Vector3.up, out RaycastHit ceilHit, 50f, ceilingMask, QueryTriggerInteraction.Ignore))
+        {
+            float ceilingY = ceilHit.point.y;
+            targetY = Mathf.Min(targetY, ceilingY - flyCeilingMargin);
+        }
+        return targetY;
+    }
+
+    // ===== Obstacle collision ignore =====
 
     void SetObstacleCollisionIgnored(bool ignore)
     {
@@ -248,7 +301,6 @@ public class PlayerMotor : MonoBehaviour
 
         int playerLayer = gameObject.layer;
 
-        // obstacleMask 지정 안 했으면 "Obstacle" 레이어만 처리
         if (obstacleMask.value == 0)
         {
             int obstacleLayer = LayerMask.NameToLayer("Obstacle");
@@ -257,7 +309,6 @@ public class PlayerMotor : MonoBehaviour
             return;
         }
 
-        // obstacleMask 지정했으면 해당 마스크의 레이어 전체 처리
         for (int layer = 0; layer < 32; layer++)
         {
             if ((obstacleMask.value & (1 << layer)) != 0)
@@ -272,26 +323,17 @@ public class PlayerMotor : MonoBehaviour
         flyGraceCo = null;
     }
 
-
     void OnValidate()
     {
-        // jumpHeight는 양수
         if (jumpHeight < 0.1f) jumpHeight = 0.1f;
-
-        // gravity는 반드시 음수로 유지
         if (gravity > -0.1f) gravity = -0.1f;
 
-        // GroundMask가 비어있으면 Default(또는 Ground)로 자동 보정
-        if (groundMask.value == 0)
+        if (groundProbeMask.value == 0)
         {
-            // Ground 레이어가 있으면 Ground로, 없으면 Default로
-            int groundLayer = LayerMask.NameToLayer("Ground");
-            groundMask = (groundLayer >= 0) ? (1 << groundLayer) : (1 << LayerMask.NameToLayer("Default"));
+            int defaultLayer = LayerMask.NameToLayer("Default");
+            groundProbeMask = (1 << defaultLayer);
         }
     }
-
-
-
 
     void Update()
     {
@@ -312,7 +354,6 @@ public class PlayerMotor : MonoBehaviour
 
         float dt = Time.deltaTime;
 
-        // Ground는 Fly 중엔 false로 고정(애니 파라미터용)
         bool grounded = isFlying ? false : cc.isGrounded;
         isGroundedCached = grounded;
 
@@ -328,9 +369,8 @@ public class PlayerMotor : MonoBehaviour
             {
                 coyoteTimer -= dt;
                 float g = gravity;
-                if (verticalVel < 0f) g *= fallGravityMultiplier; // 하강 중이면 더 강한 중력
+                if (verticalVel < 0f) g *= Mathf.Max(1f, fallGravityMultiplier);
                 verticalVel += g * dt;
-
             }
         }
         else
@@ -339,11 +379,12 @@ public class PlayerMotor : MonoBehaviour
             coyoteTimer = 0f;
         }
 
-        // 입력 (Fly 중에는 Roll/Jump를 기능적으로 무시)
+        // 입력
         bool rollHeld = (!isFlying) && input.RollHeld;
         bool rollStarted = rollHeld && !prevRollHeld;
         prevRollHeld = rollHeld;
 
+        // 점프
         if (!isFlying && coyoteTimer > 0f && input.JumpTriggered && !rollHeld)
         {
             verticalVel = Mathf.Sqrt(jumpHeight * -2f * gravity);
@@ -353,28 +394,13 @@ public class PlayerMotor : MonoBehaviour
                 anim.SetTrigger(trigJump);
         }
 
-        if (Time.frameCount % 30 == 0)
-            Debug.Log($"[Motor] grounded={grounded}, ccGrounded={cc.isGrounded}, coyote={coyoteTimer:F2}");
-
-
-
         // 레인 이동
         int lane = Mathf.Clamp(input.Lane, -1, 1);
         float targetX = lane * laneWidth;
         currentX = Mathf.Lerp(currentX, targetX, dt * laneMoveSpeed);
 
         // 전진 속도
-        float r;
-
-        // Fly 상태면 MoveLevel(런/워크) 무시하고, F키로만 전진
-        if (isFlying)
-        {
-            r = input.FlyForward ? 1f : 0f;
-        }
-        else
-        {
-            r = Mathf.Clamp01(input.MoveLevel);
-        }
+        float r = isFlying ? (input.FlyForward ? 1f : 0f) : Mathf.Clamp01(input.MoveLevel);
 
         float targetSpeed =
             (r >= 0.75f) ? runSpeed :
@@ -383,19 +409,18 @@ public class PlayerMotor : MonoBehaviour
 
         forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, dt * speedLerp);
 
+        
 
-        // ===== 충돌 캡슐 세팅 =====
+
+        // 캡슐 세팅
         if (!isFlying)
         {
             float desiredHeight = rollHeld ? slideHeight : normalHeight;
             cc.height = Mathf.Lerp(cc.height, desiredHeight, dt * slideLerp);
             cc.center = new Vector3(0, cc.height * 0.5f, 0);
 
-            if (rollStarted)
-            {
-                if (anim != null && !string.IsNullOrEmpty(trigRoll))
-                    anim.SetTrigger(trigRoll);
-            }
+            if (rollStarted && anim != null && !string.IsNullOrEmpty(trigRoll))
+                anim.SetTrigger(trigRoll);
         }
         else
         {
@@ -403,7 +428,7 @@ public class PlayerMotor : MonoBehaviour
             cc.center = new Vector3(0, cc.height * 0.5f, 0);
         }
 
-        // ===== 이동 =====
+        // 이동 벡터
         Vector3 move = Vector3.zero;
 
         // x
@@ -421,6 +446,8 @@ public class PlayerMotor : MonoBehaviour
         else
         {
             float targetY = flyGroundY + flyLiftY;
+            targetY = ClampTargetYByCeiling(targetY); // ✅ 천장 아래로 강제 제한
+
             float diff = targetY - transform.position.y;
 
             float speed = diff > 0f ? flyUpSpeed : flyDownSpeed;
@@ -434,24 +461,18 @@ public class PlayerMotor : MonoBehaviour
 
         cc.Move(move);
 
-        if (debugLogs && isFlying && Time.frameCount % 15 == 0)
-        {
-            bool hitGround;
-            float gy = GetGroundY(out hitGround);
-            float targetY = hitGround ? (gy + flyLiftY) : transform.position.y;
-            Debug.Log($"[FLY] y={transform.position.y:F2} groundY={(hitGround ? gy : -999f):F2} lift={flyLiftY:F2} targetY={targetY:F2} ccCenterY={cc.center.y:F2} ccH={cc.height:F2}");
-        }
-
-        if (Time.frameCount % 30 == 0 && input != null)
-            Debug.Log($"jump={input.JumpTriggered}, roll={input.RollHeld}");
-
-
         // 애니 파라미터
         if (anim != null)
         {
             if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, grounded);
             if (!string.IsNullOrEmpty(paramMoveLevel)) anim.SetFloat(paramMoveLevel, r);
             if (!string.IsNullOrEmpty(paramIsFlying)) anim.SetBool(paramIsFlying, isFlying);
+        }
+
+        if (debugLogs && Time.frameCount % 30 == 0)
+        {
+            bool rayG = IsGroundedRay();
+            Debug.Log($"[Motor] grounded(cc)={grounded} groundedRay={rayG} y={transform.position.y:F2} vY={verticalVel:F2} fly={isFlying} flyGroundY={flyGroundY:F2}");
         }
     }
 
@@ -462,13 +483,19 @@ public class PlayerMotor : MonoBehaviour
         visualRoot.localRotation = visualLocalRot0;
     }
 
+    // ✅ 기존 호출부(인수 3개)를 살리기 위한 오버로드
+    public void StartFlyingImmediate(float liftY = -1f, float immediateStepY = -1f, float graceSec = -1f)
+    {
+        if (graceSec > 0f) flyGraceSec = graceSec;
+        StartFlyingImmediate(liftY);
+    }
+
     // ===== Public API for Wings =====
 
     public void SetFlying(bool on, float liftY = -1f)
     {
         if (on)
         {
-            // 혹시 착지 후 복구 코루틴 돌고 있으면 끊기
             if (flyGraceCo != null) { StopCoroutine(flyGraceCo); flyGraceCo = null; }
 
             flyGroundY = GetGroundYOrCurrent();
@@ -479,7 +506,6 @@ public class PlayerMotor : MonoBehaviour
 
             if (liftY > 0f) flyLiftY = liftY;
 
-            // ✅ 비행 중: 장애물 충돌 무시 + stepOffset 낮추기
             SetObstacleCollisionIgnored(true);
             if (cc != null) cc.stepOffset = Mathf.Min(flyStepOffset, 0.1f);
 
@@ -491,20 +517,29 @@ public class PlayerMotor : MonoBehaviour
             coyoteTimer = 0f;
             verticalVel = -2f;
 
-            if (anim != null && !string.IsNullOrEmpty("Land")) anim.SetTrigger("Land");
+            if (anim != null) anim.SetTrigger("Land");
 
-            // ✅ 착지: stepOffset 원복
             if (cc != null) cc.stepOffset = defaultStepOffset;
+
+
+
+
+            // ✅ 착지: 현재 위치 기준으로 바닥 재측정
+
+            float groundY = FindGroundYForLanding();
+            Debug.Log($"[LANDDBG] yBefore={transform.position.y:F2}, groundY={groundY:F2}");
+            if (groundY > transform.position.y)
+                groundY = transform.position.y - 2f;
 
             if (cc != null)
             {
                 cc.enabled = false;
-                transform.position = new Vector3(transform.position.x, flyGroundY, transform.position.z);
+                transform.position = new Vector3(transform.position.x, groundY + 0.02f, transform.position.z);
                 cc.enabled = true;
             }
+
             SnapToGroundOnce();
 
-            // 착지 직후 3초도 계속 무시 유지(바로 장애물 나오면 억까 방지)
             SafeUntilTime = Mathf.Max(SafeUntilTime, Time.time + 3.0f);
 
             if (flyGraceCo != null) StopCoroutine(flyGraceCo);
@@ -512,13 +547,11 @@ public class PlayerMotor : MonoBehaviour
         }
     }
 
-    public void StartFlyingImmediate(float liftY = -1f, float immediateStepY = -1f, float graceSec = -1f)
+    public void StartFlyingImmediate(float liftY = -1f)
     {
-        // 기존 코루틴 정리
         if (flyGraceCo != null) { StopCoroutine(flyGraceCo); flyGraceCo = null; }
 
         if (liftY > 0f) flyLiftY = liftY;
-        float stepY = immediateStepY > 0f ? immediateStepY : flyImmediateStepY;
 
         flyGroundY = GetGroundYOrCurrent();
 
@@ -526,21 +559,11 @@ public class PlayerMotor : MonoBehaviour
         verticalVel = 0f;
         coyoteTimer = 0f;
 
-        // ✅ 즉시 비행도 동일하게: 장애물 무시 + stepOffset 낮추기
         SetObstacleCollisionIgnored(true);
         if (cc != null) cc.stepOffset = Mathf.Min(flyStepOffset, 0.1f);
 
-        // 롤 상태든 뭐든 Fly 시작 순간 캡슐을 정상화(필수)
         cc.height = normalHeight;
         cc.center = new Vector3(0, cc.height * 0.5f, 0);
-
-        // 같은 프레임 즉시 상승(천장 있으면 상승 안 함)
-        if (stepY > 0f && !HasCeiling(stepY))
-        {
-            cc.enabled = false;
-            transform.position += new Vector3(0f, stepY, 0f);
-            cc.enabled = true;
-        }
 
         if (anim != null && !string.IsNullOrEmpty(paramIsFlying))
             anim.SetBool(paramIsFlying, true);
@@ -558,7 +581,6 @@ public class PlayerMotor : MonoBehaviour
 
         isFlying = false;
 
-        // ✅ 혹시 남아있으면 원복
         SetObstacleCollisionIgnored(false);
         if (cc != null) cc.stepOffset = defaultStepOffset;
 
