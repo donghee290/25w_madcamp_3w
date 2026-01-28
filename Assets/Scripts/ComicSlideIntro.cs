@@ -143,6 +143,8 @@ public class ComicSlideIntro : MonoBehaviour
             PrepPanel(panel1, finalPos1, +1f);
         }
 
+        BgmFader.I?.FadeOut();
+
         // ✅ 컷과 동시에 재생 + 다음 컷은 끝난 뒤
         yield return SlideInWithFX_AndCutAudio(panel1, finalPos1, isPunch: false, cutIndex: 1);
         yield return new WaitForSeconds(gapDelay);

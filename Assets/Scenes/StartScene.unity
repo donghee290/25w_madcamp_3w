@@ -918,15 +918,13 @@ MonoBehaviour:
   m_GameObject: {fileID: 695205998}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 9ade0f2cb6fd9d543a0a3ed272c249c8, type: 3}
+  m_Script: {fileID: 11500000, guid: 6c521320dd460164db35e0772311a37b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   bgmSource: {fileID: 1483863617}
-  onlySceneName: Main
+  onlySceneName: StartScene
   normalVolume: 0.35
-  duckVolume: 0.18
-  fadeDownSec: 0.05
-  fadeUpSec: 0.25
+  fadeOutSec: 0.6
 --- !u!4 &695206000
 Transform:
   m_ObjectHideFlags: 0
