@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using UnityEngine;
+using TMPro;
 
 [RequireComponent(typeof(CharacterController))]
 public class PlayerMotor : MonoBehaviour
@@ -8,8 +9,18 @@ public class PlayerMotor : MonoBehaviour
     public MonoBehaviour inputSource;
     private IPlayerInput input;
 
+    [Header("Sprint Boost (when running hard)")]
+    public float sprintBonusSpeed = 10f;      // 추가 최고속 (runSpeed에 더해짐)
+    public float sprintBuildPerSec = 2.5f;    // 빨리 달릴 때 차는 속도
+    public float sprintDecayPerSec = 3.5f;    // 멈추면 빠지는 속도
+
+    private float sprint01 = 0f;              // 0~1
+
     [Header("Animator (required)")]
     public Animator anim;
+
+    [Header("UI Debug")]
+    public TextMeshProUGUI debugText;
 
     [Header("Animator Params (only existing ones)")]
     public string paramMoveLevel = "MoveLevel";
@@ -17,10 +28,19 @@ public class PlayerMotor : MonoBehaviour
     public string paramIsFlying = "IsFlying";
     public string trigJump = "Jump";
     public string trigRoll = "Roll";
+    public string trigLand = "Land";   // Animator에 Land 트리거가 있으면 이 이름 그대로
+    private float _savedAnimSpeed = 1f;
+    private Coroutine _freezeCo;
 
     [Header("Lane")]
     public float laneWidth = 1.2f;
     public float laneMoveSpeed = 14f;
+
+    [Header("Forward Acceleration (Physical feel)")]
+    public float minAccel = 6f;      // r=0 근처 가속 (느리게)
+    public float maxAccel = 22f;     // r=1 근처 가속 (빠르게)
+    public float brakeAccel = 30f;   // 감속 속도 (멈출 때)
+
 
     [Header("Forward Speeds")]
     public float runSpeed = 10f;
@@ -87,6 +107,8 @@ public class PlayerMotor : MonoBehaviour
     [Tooltip("바닥만 포함 (예: Default 또는 Ground). 천장/장애물 레이어 절대 포함 X")]
     public LayerMask groundProbeMask;
 
+
+
     [Tooltip("천장/상단 충돌용 (예: Ceiling 레이어만)")]
     public LayerMask ceilingMask;
 
@@ -118,6 +140,8 @@ public class PlayerMotor : MonoBehaviour
 
     private bool obstacleIgnored = false;
     private float defaultStepOffset = 0f;
+    private bool _snappedOnCountdown = false;
+
 
     void Awake()
     {
@@ -196,14 +220,40 @@ public class PlayerMotor : MonoBehaviour
 
     void SnapToGroundOnce()
     {
+        if (cc == null) cc = GetComponent<CharacterController>();
+
+        float curY = transform.position.y;
+
+        // 위에서 아래로 쏴서 "진짜 바닥"만 찾기
         Vector3 origin = transform.position + Vector3.up * 2f;
-        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 20f, groundProbeMask, QueryTriggerInteraction.Ignore))
+
+        // RaycastAll로 여러 개 맞춰서, 그 중 "바닥 조건"을 만족하는 것만 고름
+        RaycastHit[] hits = Physics.RaycastAll(origin, Vector3.down, 30f, groundProbeMask, QueryTriggerInteraction.Ignore);
+        if (hits == null || hits.Length == 0) return;
+
+        // 가까운 순으로 정렬
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+        for (int i = 0; i < hits.Length; i++)
         {
+            var hit = hits[i];
+
+            // ✅ 1) 위를 향한 면만 바닥으로 인정
+            if (hit.normal.y < 0.6f) continue;
+
+            // ✅ 2) "바닥"이 현재보다 위로 나오면 무시(천장/벽 오인 방지)
+            if (hit.point.y > curY + 0.5f) continue;
+
+            // 여기까지 통과하면 진짜 바닥 후보
             cc.enabled = false;
             transform.position = new Vector3(transform.position.x, hit.point.y, transform.position.z);
             cc.enabled = true;
+            return;
         }
+
+        // 통과하는 바닥이 없으면 아무 것도 안 함
     }
+
 
     Vector3 GetFootWorldPos()
     {
@@ -337,6 +387,8 @@ public class PlayerMotor : MonoBehaviour
 
     void Update()
     {
+        
+
         if (GameManager.I != null && GameManager.I.State != GameState.Playing)
         {
             if (anim != null)
@@ -399,17 +451,41 @@ public class PlayerMotor : MonoBehaviour
         float targetX = lane * laneWidth;
         currentX = Mathf.Lerp(currentX, targetX, dt * laneMoveSpeed);
 
-        // 전진 속도
         float r = isFlying ? (input.FlyForward ? 1f : 0f) : Mathf.Clamp01(input.MoveLevel);
 
-        float targetSpeed =
-            (r >= 0.75f) ? runSpeed :
-            (r >= 0.25f) ? walkSpeed :
-            stopSpeed;
+        // ✅ 목표 속도: 연속값 (걷기~달리기)
+        float targetSpeed = Mathf.Lerp(walkSpeed, runSpeed, r);
 
-        forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, dt * speedLerp);
+        // ✅ "거의 가속 없음" : 18~25 사이면 거의 즉각
+        forwardSpeed = Mathf.Lerp(forwardSpeed, targetSpeed, 20f * dt);
 
-        
+        // 스프린트 기능은 일단 끄기(이상한 가속의 주범)
+        sprint01 = 0f;
+
+
+
+
+
+        // ===== 애니용 MoveLevel (RUN 훨씬 쉽게) =====
+
+        // 1️⃣ 속도 기반 (기존 로직)
+        float speedBased01 = 0f;
+        if (runSpeed > 0.01f)
+            speedBased01 = Mathf.InverseLerp(walkSpeed, runSpeed, forwardSpeed);
+        speedBased01 = Mathf.Clamp01(speedBased01);
+
+        // 2️⃣ 입력 기반 (PoseInput에서 온 r)
+        float inputBased01 = Mathf.Clamp01(r);
+
+        // 3️⃣ "뛰고 있으면 무조건 뛰어라"
+        float animMove = Mathf.Max(speedBased01, inputBased01);
+
+        // 4️⃣ 스프린트 중이면 Run 애니 고정 (체감 핵심)
+        if (sprint01 > 0.2f)
+            animMove = Mathf.Max(animMove, 0.85f);
+
+        animMove = Mathf.Clamp01(animMove);
+
 
 
         // 캡슐 세팅
@@ -465,7 +541,7 @@ public class PlayerMotor : MonoBehaviour
         if (anim != null)
         {
             if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, grounded);
-            if (!string.IsNullOrEmpty(paramMoveLevel)) anim.SetFloat(paramMoveLevel, r);
+            if (!string.IsNullOrEmpty(paramMoveLevel)) anim.SetFloat(paramMoveLevel, animMove);
             if (!string.IsNullOrEmpty(paramIsFlying)) anim.SetBool(paramIsFlying, isFlying);
         }
 
@@ -474,6 +550,17 @@ public class PlayerMotor : MonoBehaviour
             bool rayG = IsGroundedRay();
             Debug.Log($"[Motor] grounded(cc)={grounded} groundedRay={rayG} y={transform.position.y:F2} vY={verticalVel:F2} fly={isFlying} flyGroundY={flyGroundY:F2}");
         }
+
+
+        if (debugText != null)
+        {
+            debugText.text =
+                $"r(MoveLevel): {r:0.00}\n" +
+                $"speed: {forwardSpeed:0.00}\n" +
+                $"lane: {input.Lane}\n" +
+                $"grounded: {isGroundedCached}";
+        }
+
     }
 
     void LateUpdate()
@@ -570,6 +657,49 @@ public class PlayerMotor : MonoBehaviour
 
         SafeUntilTime = Mathf.Max(SafeUntilTime, Time.time + 0.1f);
     }
+
+    IEnumerator CoFreezeAnimatorAfter(float sec)
+    {
+        yield return new WaitForSeconds(sec);
+        if (anim != null) anim.speed = 0f;   // ✅ 포즈 고정
+        _freezeCo = null;
+    }
+
+
+    public void StartOnGroundForCountdown()
+    {
+        // 상태/속도 리셋
+        forwardSpeed = 0f;
+        verticalVel = 0f;
+        coyoteTimer = 0f;
+
+        isFlying = false;
+
+        // 충돌무시/stepOffset 원복
+        SetObstacleCollisionIgnored(false);
+        if (cc != null) cc.stepOffset = defaultStepOffset;
+
+        // ✅ 핵심: 시작부터 바닥에 딱 붙이기
+        SnapToGroundOnce();
+
+        // CharacterController가 첫 프레임 grounded를 놓치는 경우가 있어서
+        // 아주 살짝 아래로 눌러서 안정화 (값 너무 크면 계단 내려가는 느낌 나니 0.02 권장)
+        if (cc != null)
+            cc.Move(Vector3.down * 0.02f);
+
+
+        if (debugLogs)
+            Debug.Log($"[StartOnGround] y={transform.position.y:F2} grounded(cc)={cc.isGrounded}");
+
+        // 애니 파라미터도 "정지 상태"로
+        if (anim != null)
+        {
+            if (!string.IsNullOrEmpty(paramMoveLevel)) anim.SetFloat(paramMoveLevel, 0f);
+            if (!string.IsNullOrEmpty(paramIsGrounded)) anim.SetBool(paramIsGrounded, true);
+            if (!string.IsNullOrEmpty(paramIsFlying)) anim.SetBool(paramIsFlying, false);
+        }
+    }
+
 
     // ===== Utility =====
 
