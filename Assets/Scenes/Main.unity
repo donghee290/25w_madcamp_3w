@@ -825,17 +825,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f21788a4860920041b322059b011aa21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  inputSource: {fileID: 696068154}
+  inputSource: {fileID: 696068152}
+  sprintBonusSpeed: 10
+  sprintBuildPerSec: 2.5
+  sprintDecayPerSec: 3.5
   anim: {fileID: 256363709}
+  debugText: {fileID: 0}
   paramMoveLevel: MoveLevel
   paramIsGrounded: IsGrounded
   paramIsFlying: IsFlying
   trigJump: Jump
   trigRoll: Roll
+  trigLand: Land
   laneWidth: 1.2
   laneMoveSpeed: 14
-  runSpeed: 10
-  walkSpeed: 6
+  minAccel: 1
+  maxAccel: 5
+  brakeAccel: 30
+  runSpeed: 15
+  walkSpeed: 5
   stopSpeed: 0
   speedLerp: 8
   forwardSpeed: 6
@@ -899,7 +907,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 696068143}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8f54b92752e658e4aa6c171aa8e20e10, type: 3}
   m_Name: 
@@ -955,11 +963,11 @@ MonoBehaviour:
   rollFramesRequired: 2
   rollHoldSeconds: 0.1
   rollCooldown: 0.7
-  shoulderDeltaDeadzone: 0
-  walkThreshold: 0.004
+  shoulderDeltaDeadzone: 0.0008
+  walkThreshold: 0.001
   runThreshold: 0.0012
-  energySmoothing: 35
-  moveLevelSmoothing: 18
+  energySmoothing: 25
+  moveLevelSmoothing: 22
   moveCurve: 1.2
   armsOutMinX: 0.18
   wristNearShoulderY: 0.1
@@ -972,6 +980,7 @@ MonoBehaviour:
   dxDebug: 0
   handsUpDebug: 0
   rollBendDebug: 0
+  flyDebug: 0
 --- !u!1 &808593770
 GameObject:
   m_ObjectHideFlags: 0
@@ -1743,7 +1752,7 @@ MonoBehaviour:
   spawnChanceStage2: 0.8
   spawnChanceStage3: 0.75
   singleOnly: 1
-  minObstacleGapZ: 20
+  minObstacleGapZ: 25
   zBlockRange: 2
   laneBlockHalfWidth: 0.55
   maxSpawnTries: 10
@@ -2418,6 +2427,7 @@ MonoBehaviour:
   gameOverReason: 0
   distanceMeters: 0
   playerMotor: {fileID: 696068148}
+  poseInput: {fileID: 0}
   topBarRoot: {fileID: 1287908105}
   reportPopupRoot: {fileID: 1404872823}
   reportPopupDelay: 2
