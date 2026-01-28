@@ -49,9 +49,30 @@ public class ComicSlideIntro : MonoBehaviour
     public float shakeStrength = 12f;
 
     [Header("SFX")]
+    [Tooltip("효과음 재생용(AudioSource). 2D로 설정 권장, PlayOnAwake OFF")]
     public AudioSource audioSource;
+
+    [Tooltip("컷 등장 스위시")]
+    public AudioClip swish;
+
+    [Tooltip("1컷 내레이션/효과")]
+    public AudioClip intro_1;
+
+    [Tooltip("2컷 내레이션/효과")]
+    public AudioClip intro_2;
+
+    [Tooltip("패널 슬라이드(페이지 플립)")]
     public AudioClip pageFlip;
+
+    [Tooltip("펀치(2컷)")]
     public AudioClip punch;
+
+    [Header("Audio timing")]
+    [Tooltip("컷 '등장과 동시에' swish+intro를 같이 시작하고, 다음 컷은 '둘 다 끝난 뒤'에 진행")]
+    public bool playSwishAndIntroTogether = true;
+
+    [Tooltip("컷 음원이 너무 길면 템포가 늘어지니, 최대 대기 시간을 제한(0이면 제한 없음)")]
+    public float maxWaitCutAudioSec = 0f;
 
     [Header("Scene Transition")]
     public float sceneTransitionDelay = 2f;
@@ -69,14 +90,13 @@ public class ComicSlideIntro : MonoBehaviour
 
         if (whiteBG != null) whiteBG.SetActive(false);
 
-        // ✅ 시작 시 패널은 꺼둠 (원하던 동작)
+        // ✅ 시작 시 패널은 꺼둠
         if (panel1 != null) panel1.gameObject.SetActive(false);
         if (panel2 != null) panel2.gameObject.SetActive(false);
         if (panel3 != null) panel3.gameObject.SetActive(false);
 
         if (shakeTarget != null) shakeOrigin = shakeTarget.anchoredPosition;
 
-        // offscreenX 자동 계산 (현재 루트 폭 기준)
         RectTransform root = GetRootRect(panel1) ?? GetRootRect(panel2) ?? GetRootRect(panel3);
         float rootWidth = root != null ? root.rect.width : 1080f;
         offscreenX = (rootWidth * 0.55f) + offscreenMargin;
@@ -94,7 +114,6 @@ public class ComicSlideIntro : MonoBehaviour
         return null;
     }
 
-    // ✅ 패널을 "활성화 직후" 오프스크린 위치로 세팅
     void PrepPanel(RectTransform panel, Vector2 finalPos, float sideSign)
     {
         if (panel == null) return;
@@ -117,42 +136,100 @@ public class ComicSlideIntro : MonoBehaviour
 
     IEnumerator Sequence()
     {
-        // panel1 (오른쪽 -> 중앙)
+        // 1) panel1
         if (panel1 != null)
         {
             panel1.gameObject.SetActive(true);
             PrepPanel(panel1, finalPos1, +1f);
         }
-        yield return SlideInWithFX(panel1, finalPos1, isPunch: false);
+
+        // ✅ 컷과 동시에 재생 + 다음 컷은 끝난 뒤
+        yield return SlideInWithFX_AndCutAudio(panel1, finalPos1, isPunch: false, cutIndex: 1);
         yield return new WaitForSeconds(gapDelay);
 
-        // panel2 (왼쪽 -> 중앙)
+        // 2) panel2
         if (panel2 != null)
         {
             panel2.gameObject.SetActive(true);
             PrepPanel(panel2, finalPos2, -1f);
         }
-        yield return SlideInWithFX(panel2, finalPos2, isPunch: true);
+
+        yield return SlideInWithFX_AndCutAudio(panel2, finalPos2, isPunch: true, cutIndex: 2);
         yield return new WaitForSeconds(gapDelay);
 
-        // panel3 (오른쪽 -> 중앙)
+        // 3) panel3
         if (panel3 != null)
         {
             panel3.gameObject.SetActive(true);
             PrepPanel(panel3, finalPos3, +1f);
         }
-        yield return SlideInWithFX(panel3, finalPos3, isPunch: false);
 
-        // ✅ 애니메이션 다 끝나고 2초 대기 후 씬 전환
+        yield return SlideInWithFX_AndCutAudio(panel3, finalPos3, isPunch: false, cutIndex: 3);
+
         yield return new WaitForSeconds(sceneTransitionDelay);
         SceneManager.LoadScene(mainSceneName);
+    }
+
+    IEnumerator SlideInWithFX_AndCutAudio(RectTransform panel, Vector2 finalPos, bool isPunch, int cutIndex)
+    {
+        if (panel == null) yield break;
+
+        // ✅ 컷 등장과 "동시에" 오디오 시작
+        float waitAudio = StartCutAudioReturnWaitSeconds(cutIndex);
+
+        // ✅ 슬라이드/연출은 그대로 진행(오디오는 같이 재생됨)
+        yield return SlideInWithFX(panel, finalPos, isPunch);
+
+        // ✅ 다음 컷으로 넘어가기 전에(겹치지 않게) 남은 오디오가 끝날 때까지 대기
+        // - 슬라이드 시간이 오디오보다 길면 waitAudio - slideFX시간이 음수일 수 있는데,
+        //   여기서는 "슬라이드가 끝난 시점" 기준으로 '남은 오디오'만 기다리려고 별도 계산을 하지 않고,
+        //   그냥 오디오 전체 길이만큼 기다리면 슬라이드가 끝난 뒤 추가 대기가 생길 수 있음.
+        //   그래서 "슬라이드 시작과 동시에 오디오 시작"을 고려해 남은 시간을 계산한다.
+        //   -> SlideInWithFX 내부 총 재생 시간을 추정해서 빼줌.
+        float fxTime = GetFxDurationEstimate(isPunch);
+        float remaining = waitAudio - fxTime;
+        if (remaining > 0f) yield return new WaitForSeconds(remaining);
+    }
+
+    float StartCutAudioReturnWaitSeconds(int cutIndex)
+    {
+        if (audioSource == null) return 0f;
+
+        AudioClip intro = null;
+        if (cutIndex == 1) intro = intro_1;
+        else if (cutIndex == 2) intro = intro_2;
+        else intro = null; // 3컷은 intro 없음
+
+        // 둘 다 동시에 시작
+        if (swish != null) audioSource.PlayOneShot(swish);
+        if (intro != null) audioSource.PlayOneShot(intro);
+
+        // "다 끝난 뒤" 넘어가야 하므로 더 긴 쪽 길이를 기다림
+        float lenA = swish != null ? swish.length : 0f;
+        float lenB = intro != null ? intro.length : 0f;
+        float wait = Mathf.Max(lenA, lenB);
+
+        if (maxWaitCutAudioSec > 0f) wait = Mathf.Min(wait, maxWaitCutAudioSec);
+        return wait;
+    }
+
+    // SlideInWithFX가 대략 얼마나 걸리는지(오디오 남은 시간 계산용) 추정
+    float GetFxDurationEstimate(bool isPunch)
+    {
+        // SlideTo: slideDuration + settleDuration
+        // Shake: shakeDuration
+        // Pop: popDuration
+        float t = slideDuration + settleDuration + shakeDuration + popDuration;
+        return t;
     }
 
     IEnumerator SlideInWithFX(RectTransform panel, Vector2 finalPos, bool isPunch)
     {
         if (panel == null) yield break;
 
+        // 페이지 플립은 컷 등장과 동시에 "겹쳐도 되는" 효과음 (원하면 빼세요)
         PlaySfx(pageFlip);
+
         yield return SlideTo(panel, finalPos);
 
         if (isPunch) PlaySfx(punch);
@@ -170,19 +247,16 @@ public class ComicSlideIntro : MonoBehaviour
 
         Vector2 overshootTarget = new Vector2(target.x + (overshootPx * dir), target.y);
 
-        // Phase A: 오버슈트까지 이동
         float t = 0f;
         while (t < slideDuration)
         {
             t += Time.deltaTime;
             float u = Mathf.Clamp01(t / slideDuration);
 
-            // ✅ 더 느리고 부드럽게: 4f -> 2.4f
             float k = 1f - Mathf.Pow(1f - u, 2.4f);
 
             rt.anchoredPosition = Vector2.Lerp(start, overshootTarget, k);
 
-            // Squash & Stretch
             float s = Mathf.Sin(u * Mathf.PI);
             float stretch = 1f + (stretchAmount * s);
             float squash = 1f - (stretchAmount * 0.6f * s);
@@ -191,7 +265,6 @@ public class ComicSlideIntro : MonoBehaviour
             yield return null;
         }
 
-        // Phase B: 오버슈트에서 target으로 정착
         t = 0f;
         Vector2 from = rt.anchoredPosition;
         Vector3 scaleFrom = rt.localScale;
