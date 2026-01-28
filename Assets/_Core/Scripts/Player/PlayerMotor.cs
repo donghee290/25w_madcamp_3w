@@ -29,6 +29,10 @@ public class PlayerMotor : MonoBehaviour
     public float walkSpeed = 6f;
     public float stopSpeed = 0f;
 
+    [Header("Jump Feel")]
+    public float fallGravityMultiplier = 2.0f; // 내려올 때 중력 2배
+
+
     [Tooltip("forwardSpeed가 targetSpeed를 따라가는 속도(클수록 빨리 반응)")]
     public float speedLerp = 8f;
 
@@ -115,6 +119,13 @@ public class PlayerMotor : MonoBehaviour
 
     void Awake()
     {
+        if (groundMask.value == 0)
+        {
+            int groundLayer = LayerMask.NameToLayer("Ground");
+            groundMask = (groundLayer >= 0) ? (1 << groundLayer) : (1 << LayerMask.NameToLayer("Default"));
+            Debug.LogWarning($"[PlayerMotor] groundMask was Nothing. Auto-set to {groundMask.value}");
+        }
+
         cc = GetComponent<CharacterController>();
         defaultStepOffset = cc.stepOffset; // ✅ 원본 저장
 
@@ -261,6 +272,27 @@ public class PlayerMotor : MonoBehaviour
         flyGraceCo = null;
     }
 
+
+    void OnValidate()
+    {
+        // jumpHeight는 양수
+        if (jumpHeight < 0.1f) jumpHeight = 0.1f;
+
+        // gravity는 반드시 음수로 유지
+        if (gravity > -0.1f) gravity = -0.1f;
+
+        // GroundMask가 비어있으면 Default(또는 Ground)로 자동 보정
+        if (groundMask.value == 0)
+        {
+            // Ground 레이어가 있으면 Ground로, 없으면 Default로
+            int groundLayer = LayerMask.NameToLayer("Ground");
+            groundMask = (groundLayer >= 0) ? (1 << groundLayer) : (1 << LayerMask.NameToLayer("Default"));
+        }
+    }
+
+
+
+
     void Update()
     {
         if (GameManager.I != null && GameManager.I.State != GameState.Playing)
@@ -281,7 +313,7 @@ public class PlayerMotor : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Ground는 Fly 중엔 false로 고정(애니 파라미터용)
-        bool grounded = isFlying ? false : IsGroundedRay();
+        bool grounded = isFlying ? false : cc.isGrounded;
         isGroundedCached = grounded;
 
         // 중력/코요테
@@ -295,7 +327,10 @@ public class PlayerMotor : MonoBehaviour
             else
             {
                 coyoteTimer -= dt;
-                verticalVel += gravity * dt;
+                float g = gravity;
+                if (verticalVel < 0f) g *= fallGravityMultiplier; // 하강 중이면 더 강한 중력
+                verticalVel += g * dt;
+
             }
         }
         else
@@ -319,7 +354,7 @@ public class PlayerMotor : MonoBehaviour
         }
 
         if (Time.frameCount % 30 == 0)
-            Debug.Log($"[Motor] grounded={cc.isGrounded}");
+            Debug.Log($"[Motor] grounded={grounded}, ccGrounded={cc.isGrounded}, coyote={coyoteTimer:F2}");
 
 
 
