@@ -43,8 +43,8 @@ public class ChaserSystem : MonoBehaviour
 
     [Header("Distance change per second")]
     public float gainPerSec_Run = 0.2f;     // RUN이면 회복(+)
-    public float losePerSec_Walk = 0.8f;    // WALK이면 감소(-)
-    public float losePerSec_Stop = 1.6f;    // STOP이면 크게 감소(-)
+    public float losePerSec_Walk = 0.2f;    // WALK이면 감소(-)
+    public float losePerSec_Stop = 0.4f;    // STOP이면 크게 감소(-)
 
     [Header("MoveLevel thresholds")]
     [Tooltip("이 값 이상이면 RUN")]
