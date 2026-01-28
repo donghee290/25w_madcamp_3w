@@ -565,7 +565,7 @@ MonoBehaviour:
   spawnY: 1.6
   spawnAheadZ: 22
   wingsCheckInterval: 8
-  wingsChance: 0.07
+  wingsChance: 0.527
   bananaCheckInterval: 6
   bananaChance: 0.654
   enableBananaDropVisual: 1
@@ -741,6 +741,59 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 501932438}
   m_CullTransparentMesh: 1
+--- !u!1 &523918929
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 523918931}
+  - component: {fileID: 523918930}
+  m_Layer: 9
+  m_Name: Ceiling_Collider
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!65 &523918930
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 523918929}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!4 &523918931
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 523918929}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 4, z: 50}
+  m_LocalScale: {x: 100, y: 2, z: 500}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &612189077
 GameObject:
   m_ObjectHideFlags: 0
@@ -899,6 +952,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   obstacleTag: Obstacle
   debugLogs: 1
+  ignoreCeilingWhileFlying: 1
+  ceilingLayerMask:
+    serializedVersion: 2
+    m_Bits: 512
   ceilingNormalThreshold: -0.5
   ceilingNameContains: Ceiling
 --- !u!114 &696068148
@@ -927,28 +984,32 @@ MonoBehaviour:
   stopSpeed: 0
   speedLerp: 8
   forwardSpeed: 6
-  jumpHeight: 2.7
-  gravity: -15
+  jumpHeight: 5
+  gravity: -12
+  fallGravityMultiplier: 2
   normalHeight: 2
   slideHeight: 0.9
   slideLerp: 20
   groundRayLength: 1.2
   groundRayStartUp: 0.2
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 0
   coyoteTime: 0.12
   flyLiftY: 2.4
   flyUpSpeed: 6
   flyDownSpeed: 10
   flyMaxUpPerFrame: 0.25
   flyGroundProbe: 3
-  flyImmediateStepY: 1.2
+  flyCeilingMargin: 0.35
   flyGraceSec: 0.6
   obstacleMask:
     serializedVersion: 2
     m_Bits: 0
   flyStepOffset: 0.05
+  groundProbeMask:
+    serializedVersion: 2
+    m_Bits: 1
+  ceilingMask:
+    serializedVersion: 2
+    m_Bits: 512
   debugLogs: 1
 --- !u!143 &696068149
 CharacterController:
@@ -1617,7 +1678,7 @@ MonoBehaviour:
   spawnChanceStage2: 0.8
   spawnChanceStage3: 0.75
   singleOnly: 1
-  minObstacleGapZ: 10
+  minObstacleGapZ: 20
   zBlockRange: 2
   laneBlockHalfWidth: 0.55
   maxSpawnTries: 10
@@ -4975,3 +5036,5 @@ SceneRoots:
   - {fileID: 64336492}
   - {fileID: 1039562791}
   - {fileID: 248894556}
+  - {fileID: 1975597246}
+  - {fileID: 523918931}
