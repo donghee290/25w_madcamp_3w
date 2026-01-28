@@ -26,6 +26,10 @@ public class GameManager : MonoBehaviour
     [Tooltip("ReportPopup 지연 시간(초)")]
     [SerializeField] private float reportPopupDelay = 2f;
 
+    [Header("Find throttling")]
+    [Tooltip("PlayerMotor를 못 찾았을 때 재탐색 쿨다운(초)")]
+    [SerializeField] private float findCooldown = 1.0f;
+
     public GameState State => state;
     public GameOverReason Reason => gameOverReason;
     public float DistanceMeters => distanceMeters;
@@ -33,6 +37,10 @@ public class GameManager : MonoBehaviour
     public System.Action<GameOverReason> OnGameOverEvent;
 
     private Coroutine reportPopupCo;
+
+    // PlayerMotor 재탐색 제어
+    private float nextFindTime = 0f;
+    private bool warnedNoPlayer = false;
 
     void Awake()
     {
@@ -55,37 +63,55 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        EnsurePlayerMotor();
-        EnsureUIRefs(); // 씬 시작 시 UI 참조도 잡아둠
+        EnsurePlayerMotor(forceLog: false);
+        EnsureUIRefs();
     }
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        // 씬이 다시 로드되면 기존 레퍼런스가 끊길 수 있어서 재탐색
-        EnsurePlayerMotor();
+        // 씬 전환 시 레퍼런스 재탐색
+        playerMotor = null; // 이전 씬 참조 들고있지 않게 강제로 끊기
+        EnsurePlayerMotor(forceLog: false);
+
+        // UI도 씬마다 새로 잡는 게 안전
+        topBarRoot = null;
+        reportPopupRoot = null;
         EnsureUIRefs();
 
         // 씬 로드 시 기본 UI 상태 정리(재시작/씬전환 시 꼬임 방지)
         if (topBarRoot != null) topBarRoot.SetActive(true);
         if (reportPopupRoot != null) reportPopupRoot.SetActive(false);
+
+        // 씬 로드시 경고 플래그 초기화(스팸 방지)
+        warnedNoPlayer = false;
+        nextFindTime = 0f;
     }
 
-    void EnsurePlayerMotor()
+    void EnsurePlayerMotor(bool forceLog)
     {
         if (playerMotor != null) return;
 
         playerMotor = FindFirstObjectByType<PlayerMotor>();
+
         if (playerMotor == null)
-            Debug.LogWarning("[GameManager] PlayerMotor not found in scene.");
+        {
+            // 경고 스팸 방지: 한 번만 찍거나(forceLog면 찍기)
+            if (!warnedNoPlayer || forceLog)
+            {
+                warnedNoPlayer = true;
+                Debug.LogWarning("[GameManager] PlayerMotor not found in scene.");
+            }
+        }
         else
+        {
+            warnedNoPlayer = false;
             Debug.Log($"[GameManager] PlayerMotor bound: {playerMotor.name}");
+        }
     }
 
     void EnsureUIRefs()
     {
-        // 인스펙터에 연결돼 있으면 그대로 사용
-        // DontDestroyOnLoad라 씬 바뀌면 null이 되거나(파괴), 이전 씬 오브젝트를 잡고 있을 수 있어서
-        // 매 씬 로드시 새로 찾아주는 게 안전함.
+        // 이름이 다르면 인스펙터에 직접 연결하세요.
         if (topBarRoot == null)
         {
             var go = GameObject.Find("TopBarRoot");
@@ -103,8 +129,17 @@ public class GameManager : MonoBehaviour
     {
         if (state != GameState.Playing) return;
 
-        EnsurePlayerMotor();
-        if (playerMotor == null) return;
+        // playerMotor가 없는 씬에서도 DontDestroyOnLoad로 Update는 계속 돌 수 있음
+        // -> 매 프레임 찾지 말고 findCooldown 주기로만 찾기
+        if (playerMotor == null)
+        {
+            if (Time.time >= nextFindTime)
+            {
+                nextFindTime = Time.time + findCooldown;
+                EnsurePlayerMotor(forceLog: false);
+            }
+            return;
+        }
 
         distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime;
     }
@@ -118,7 +153,7 @@ public class GameManager : MonoBehaviour
         state = GameState.GameOver;
         gameOverReason = reason;
 
-        // 1) 즉시 TopBar 숨김 (reportPopup과 동시에 뜨면 안 되니까 제일 먼저)
+        // 1) 즉시 TopBar 숨김 (reportPopup과 동시에 작동하면 안됨)
         EnsureUIRefs();
         if (topBarRoot != null) topBarRoot.SetActive(false);
 
@@ -144,10 +179,18 @@ public class GameManager : MonoBehaviour
         if (reportPopupRoot != null) reportPopupRoot.SetActive(true);
     }
 
+    void CancelReportPopupCo()
+    {
+        if (reportPopupCo != null)
+        {
+            StopCoroutine(reportPopupCo);
+            reportPopupCo = null;
+        }
+    }
+
     public void RestartSceneSimple()
     {
-        // 코루틴 정리
-        if (reportPopupCo != null) { StopCoroutine(reportPopupCo); reportPopupCo = null; }
+        CancelReportPopupCo();
 
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
@@ -158,14 +201,13 @@ public class GameManager : MonoBehaviour
 
     public void ResetRun()
     {
-        // 코루틴 정리
-        if (reportPopupCo != null) { StopCoroutine(reportPopupCo); reportPopupCo = null; }
+        CancelReportPopupCo();
 
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
 
-        EnsurePlayerMotor();
+        EnsurePlayerMotor(forceLog: false);
         if (playerMotor != null)
             playerMotor.enabled = true;
 
@@ -176,8 +218,7 @@ public class GameManager : MonoBehaviour
 
     public void RestartMainScene()
     {
-        // 코루틴 정리
-        if (reportPopupCo != null) { StopCoroutine(reportPopupCo); reportPopupCo = null; }
+        CancelReportPopupCo();
 
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
@@ -188,15 +229,12 @@ public class GameManager : MonoBehaviour
 
     public void GoToStartScene()
     {
-        // 코루틴 정리
-        if (reportPopupCo != null) { StopCoroutine(reportPopupCo); reportPopupCo = null; }
+        CancelReportPopupCo();
 
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
 
-        // 혹시 메인에서 죽고 playerMotor disabled 상태로 남아도,
-        // StartScene에서는 보통 플레이어가 없으니 그냥 씬만 전환해도 OK.
         playerMotor = null;
 
         SceneManager.LoadScene("StartScene");

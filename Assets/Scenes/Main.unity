@@ -2189,6 +2189,7 @@ MonoBehaviour:
   topBarRoot: {fileID: 1287908105}
   reportPopupRoot: {fileID: 1404872823}
   reportPopupDelay: 2
+  findCooldown: 1
 --- !u!4 &1502140642
 Transform:
   m_ObjectHideFlags: 0
@@ -2777,8 +2778,9 @@ MonoBehaviour:
       m_Calls: []
   m_text: New Text
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: c503bc5387525374c915d25375854b3e, type: 2}
+  m_sharedMaterial: {fileID: -7993694195032581367, guid: c503bc5387525374c915d25375854b3e,
+    type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -4182,7 +4184,6 @@ GameObject:
   - component: {fileID: 2116446716}
   - component: {fileID: 2116446718}
   - component: {fileID: 2116446717}
-  - component: {fileID: 2116446719}
   m_Layer: 5
   m_Name: RawImage
   m_TagString: Untagged
@@ -4244,18 +4245,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2116446715}
   m_CullTransparentMesh: 1
---- !u!114 &2116446719
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2116446715}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6441e0e2530c7be45bb3d271a8b44ed1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &2132249510
 GameObject:
   m_ObjectHideFlags: 0
@@ -4862,5 +4851,3 @@ SceneRoots:
   - {fileID: 64336492}
   - {fileID: 1039562791}
   - {fileID: 248894556}
-  - {fileID: 1975597246}
-  - {fileID: 523918931}
