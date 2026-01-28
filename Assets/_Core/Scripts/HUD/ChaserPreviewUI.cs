@@ -6,7 +6,8 @@ public class ChaserPreviewUI : MonoBehaviour
     [Header("Refs")]
     public ChaserSystem chaser;
     public Camera chaserCam;
-    public RawImage rawImage;
+    public GameObject camRoot;   // CamRoot 오브젝트
+    public RawImage rawImage;    // (선택) null이어도 됨
 
     [Header("Thresholds (ratio = dist/maxDist)")]
     [Range(0f, 1f)] public float showAtOrBelow = 0.5f;
@@ -21,6 +22,19 @@ public class ChaserPreviewUI : MonoBehaviour
     void Awake()
     {
         if (!chaser) chaser = FindFirstObjectByType<ChaserSystem>();
+
+        // CamRoot를 인스펙터에 직접 넣는 게 베스트.
+        // 자동으로 잡아야 하면 현재 스크립트가 CamRoot 아래/위 어디 붙어있는지에 따라 조정.
+        if (!camRoot)
+        {
+            // 스크립트가 CamRoot에 붙어있다면:
+            camRoot = gameObject;
+
+            // 스크립트가 HUDController에 붙어있고 CamRoot가 자식이라면:
+            // var t = transform.Find("CamRoot");
+            // if (t) camRoot = t.gameObject;
+        }
+
         if (!rawImage) rawImage = GetComponentInChildren<RawImage>(true);
 
         Apply(false);
@@ -28,7 +42,7 @@ public class ChaserPreviewUI : MonoBehaviour
 
     void Update()
     {
-        if (!chaser || !rawImage) return;
+        if (!chaser || camRoot == null) return;
 
         if (onlyDuringPlaying)
         {
@@ -44,21 +58,17 @@ public class ChaserPreviewUI : MonoBehaviour
             ratio = Mathf.Clamp01(chaser.chaserDistance / chaser.maxDistance);
 
         if (!_visible && ratio <= showAtOrBelow) Apply(true);
-        else if (_visible && ratio > hideAtOrAbove) Apply(false); // 여기만 >= -> > 로 변경
+        else if (_visible && ratio > hideAtOrAbove) Apply(false);
     }
 
     void Apply(bool on)
     {
         _visible = on;
 
-        // RawImage는 끄지 말고 투명도만 제어
-        rawImage.enabled = on;
+        // CamRoot 전체 숨김/표시 (RawImage + Frame 포함)
+        camRoot.SetActive(on);
 
-        // 또는 알파로 제어하고 싶으면
-        // var c = rawImage.color;
-        // c.a = on ? 1f : 0f;
-        // rawImage.color = c;
-
+        // 카메라도 같이 끄고 싶으면
         if (alsoToggleCamera && chaserCam != null)
             chaserCam.enabled = on;
     }

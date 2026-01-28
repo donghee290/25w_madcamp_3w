@@ -576,8 +576,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Tab to start
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: c503bc5387525374c915d25375854b3e, type: 2}
-  m_sharedMaterial: {fileID: -7993694195032581367, guid: c503bc5387525374c915d25375854b3e,
+  m_fontAsset: {fileID: 11400000, guid: 50fa8eb268928b54dba0e13760151632, type: 2}
+  m_sharedMaterial: {fileID: 1053554766720074042, guid: 50fa8eb268928b54dba0e13760151632,
     type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
