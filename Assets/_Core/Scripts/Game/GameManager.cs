@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using System.Collections;
@@ -21,11 +22,32 @@ public class GameManager : MonoBehaviour
     [Header("Refs")]
     public PlayerMotor playerMotor;
 
+    [Header("UI (optional)")]
+    [Tooltip("게임오버 즉시 사라져야 하는 TopBar 루트")]
+    [SerializeField] private GameObject topBarRoot;
+
+    [Tooltip("게임오버 후 2초 뒤에 뜨는 ReportPopup 루트")]
+    [SerializeField] private GameObject reportPopupRoot;
+
+    [Tooltip("ReportPopup 지연 시간(초)")]
+    [SerializeField] private float reportPopupDelay = 2f;
+
+    [Header("Find throttling")]
+    [Tooltip("PlayerMotor를 못 찾았을 때 재탐색 쿨다운(초)")]
+    [SerializeField] private float findCooldown = 1.0f;
+
     public GameState State => state;
     public GameOverReason Reason => gameOverReason;
     public float DistanceMeters => distanceMeters;
 
     private Coroutine countdownCo;
+    public System.Action<GameOverReason> OnGameOverEvent;
+
+    private Coroutine reportPopupCo;
+
+    // PlayerMotor 재탐색 제어
+    private float nextFindTime = 0f;
+    private bool warnedNoPlayer = false;
 
     void Awake()
     {
@@ -49,6 +71,8 @@ public class GameManager : MonoBehaviour
     {
         EnsureRefs();
         StartCountdown();
+        EnsurePlayerMotor(forceLog: false);
+        EnsureUIRefs();
     }
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -57,19 +81,27 @@ public class GameManager : MonoBehaviour
         StartCountdown(); // ✅ 씬 다시 로드되어도 항상 카운트다운부터
     }
 
-    void EnsureRefs()
+    void EnsureRefs(bool forceLog = false)
     {
         if (playerMotor == null)
+        {
             playerMotor = FindFirstObjectByType<PlayerMotor>();
-
-        if (poseInput == null)
-            poseInput = FindFirstObjectByType<PoseInput>();
-
-        if (countdownUI == null)
-            countdownUI = FindFirstObjectByType<CountdownUI>();
+        }
 
         if (playerMotor == null)
-            Debug.LogWarning("[GameManager] PlayerMotor not found in scene.");
+        {
+            // 경고 스팸 방지
+            if (!warnedNoPlayer || forceLog)
+            {
+                warnedNoPlayer = true;
+                Debug.LogWarning("[GameManager] PlayerMotor not found in scene.");
+            }
+        }
+        else
+        {
+            warnedNoPlayer = false;
+            Debug.Log($"[GameManager] PlayerMotor bound: {playerMotor.name}");
+        }
     }
 
     public void StartCountdown()
@@ -88,7 +120,8 @@ public class GameManager : MonoBehaviour
         EnsureRefs();
 
         // 안전: 카운트다운 UI 초기화
-        if (countdownUI != null) countdownUI.Hide();
+        if (countdownUI != null)
+            countdownUI.Hide();
 
         countdownCo = StartCoroutine(CoCountdownAndStart());
     }
@@ -108,25 +141,59 @@ public class GameManager : MonoBehaviour
         int t = Mathf.CeilToInt(countdownSeconds);
         while (t > 0)
         {
-            if (countdownUI != null) countdownUI.SetNumber(t);
+            if (countdownUI != null)
+                countdownUI.SetNumber(t);
+
             yield return new WaitForSeconds(1f);
             t--;
         }
 
-        if (countdownUI != null) countdownUI.SetGo();
+        if (countdownUI != null)
+            countdownUI.SetGo();
+
         yield return new WaitForSeconds(0.3f);
-        if (countdownUI != null) countdownUI.Hide();
+
+        if (countdownUI != null)
+            countdownUI.Hide();
 
         state = GameState.Playing;
         countdownCo = null;
     }
 
+    void EnsureUIRefs()
+    {
+        // 이름이 다르면 인스펙터에 직접 연결하세요.
+        if (topBarRoot == null)
+        {
+            var go = GameObject.Find("TopBarRoot");
+            if (go != null)
+                topBarRoot = go;
+        }
+
+        if (reportPopupRoot == null)
+        {
+            var go = GameObject.Find("ReportPopupRoot");
+            if (go != null)
+                reportPopupRoot = go;
+        }
+    }
+
+   
     void Update()
     {
         if (state != GameState.Playing) return;
 
-        EnsureRefs();
-        if (playerMotor == null) return;
+        // playerMotor가 없는 씬에서도 DontDestroyOnLoad로 Update는 계속 돌 수 있음
+        // -> 매 프레임 찾지 말고 findCooldown 주기로만 찾기
+        if (playerMotor == null)
+        {
+            if (Time.time >= nextFindTime)
+            {
+                nextFindTime = Time.time + findCooldown;
+                EnsurePlayerMotor(forceLog: false);
+            }
+            return;
+        }
 
         distanceMeters += playerMotor.CurrentForwardSpeed * Time.deltaTime;
     }
@@ -135,33 +202,96 @@ public class GameManager : MonoBehaviour
     {
         if (state == GameState.GameOver) return;
 
+        Debug.Log("[GameManager] GameOver CALLED");
+
         state = GameState.GameOver;
         gameOverReason = reason;
 
+        // 1) 즉시 TopBar 숨김 (reportPopup과 동시에 작동하면 안됨)
+        EnsureUIRefs();
+        if (topBarRoot != null) topBarRoot.SetActive(false);
+
+        // 플레이어 정지
         if (playerMotor != null)
         {
             playerMotor.ForceStopToIdle();
             playerMotor.enabled = false;
         }
 
-        Debug.Log($"[GameManager] GAME OVER: {reason}, distance={distanceMeters:0.0}m");
+        // 2) ReportPopup은 2초 뒤
+        if (reportPopupCo != null) StopCoroutine(reportPopupCo);
+        reportPopupCo = StartCoroutine(ShowReportPopupAfterDelay());
+
+        OnGameOverEvent?.Invoke(reason);
+    }
+
+    private IEnumerator ShowReportPopupAfterDelay()
+    {
+        yield return new WaitForSeconds(reportPopupDelay);
+
+        EnsureUIRefs();
+        if (reportPopupRoot != null) reportPopupRoot.SetActive(true);
+    }
+
+    void CancelReportPopupCo()
+    {
+        if (reportPopupCo != null)
+        {
+            StopCoroutine(reportPopupCo);
+            reportPopupCo = null;
+        }
     }
 
     public void RestartSceneSimple()
     {
-        // ✅ 씬 로드 후 StartCountdown가 자동으로 돌게 되어있음
+        CancelReportPopupCo();
+
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void ResetRun()
     {
-        // ✅ 씬을 재로드하지 않고도 다시 카운트다운부터
+        CancelReportPopupCo();
+
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
+        EnsurePlayerMotor(forceLog: false);
         if (playerMotor != null)
         {
             playerMotor.enabled = true;
-            playerMotor.ForceStopToIdle();
-        }
 
-        StartCountdown();
+        EnsureUIRefs();
+        if (topBarRoot != null) topBarRoot.SetActive(true);
+        if (reportPopupRoot != null) reportPopupRoot.SetActive(false);
+    }
+
+    public void RestartMainScene()
+    {
+        CancelReportPopupCo();
+
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
+        SceneManager.LoadScene("Main");
+    }
+
+    public void GoToStartScene()
+    {
+        CancelReportPopupCo();
+
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
+        playerMotor = null;
+
+        SceneManager.LoadScene("StartScene");
     }
 }

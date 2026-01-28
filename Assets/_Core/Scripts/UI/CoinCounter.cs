@@ -12,7 +12,7 @@ public class CoinCounter : MonoBehaviour
 
     void Awake()
     {
-        // ¾À¿¡ ¿©·¯ °³ ÀÖÀ¸¸é ÇÏ³ª¸¸ ³²±è
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ï³ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (instance != null && instance != this)
         {
             Destroy(gameObject);
@@ -27,7 +27,7 @@ public class CoinCounter : MonoBehaviour
 
     public static void Add(int amount)
     {
-        // instance°¡ ºñ¾îÀÖÀ¸¸é ¾À¿¡¼­ Ã£¾Æ¼­¶óµµ ¿¬°á
+        // instanceï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Ã£ï¿½Æ¼ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         if (instance == null)
             instance = FindObjectOfType<CoinCounter>();
 
@@ -48,7 +48,7 @@ public class CoinCounter : MonoBehaviour
     void Refresh()
     {
         if (coinText != null)
-            coinText.text = $"COIN : {Count}";
+            coinText.text = $"COIN {Count}";
         else
             Debug.LogWarning("[CoinCounter] coinText is null!");
     }
