@@ -82,6 +82,8 @@ public class GameManager : MonoBehaviour
     {
         if (state == GameState.GameOver) return;
 
+        Debug.Log("[GameManager] GameOver CALLED");
+
         state = GameState.GameOver;
         gameOverReason = reason;
 
@@ -121,6 +123,19 @@ public class GameManager : MonoBehaviour
         distanceMeters = 0f;
 
         SceneManager.LoadScene("Main");
+    }
+
+    public void GoToStartScene()
+    {
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
+        // 혹시 메인에서 죽고 playerMotor disabled 상태로 남아도,
+        // StartScene에서는 보통 플레이어가 없으니 그냥 씬만 전환해도 OK.
+        playerMotor = null;
+
+        SceneManager.LoadScene("StartScene");
     }
 
 }
