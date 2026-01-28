@@ -929,7 +929,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f21788a4860920041b322059b011aa21, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  inputSource: {fileID: 696068152}
+  inputSource: {fileID: 696068154}
   anim: {fileID: 256363709}
   paramMoveLevel: MoveLevel
   paramIsGrounded: IsGrounded
@@ -1003,7 +1003,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 696068143}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 8f54b92752e658e4aa6c171aa8e20e10, type: 3}
   m_Name: 
@@ -1041,7 +1041,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 696068143}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0c13817016e0ada44a1f421b27543f51, type: 3}
   m_Name: 
@@ -1060,11 +1060,11 @@ MonoBehaviour:
   rollHoldSeconds: 0.1
   rollCooldown: 0.7
   shoulderDeltaDeadzone: 0
-  walkThreshold: 0.001
-  runThreshold: 0.003
-  energySmoothing: 20
-  moveLevelSmoothing: 10
-  moveCurve: 1.8
+  walkThreshold: 0.004
+  runThreshold: 0.0012
+  energySmoothing: 35
+  moveLevelSmoothing: 18
+  moveCurve: 1.2
   armsOutMinX: 0.18
   wristNearShoulderY: 0.1
   hasLandmarksDebug: 0
@@ -1122,7 +1122,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &840144362
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1796,12 +1796,12 @@ PrefabInstance:
     - target: {fileID: 3259285889726014650, guid: 5713b959e3c77a58fb258133fc8e4aef,
         type: 3}
       propertyPath: m_AnchorMax.x
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3259285889726014650, guid: 5713b959e3c77a58fb258133fc8e4aef,
         type: 3}
       propertyPath: m_AnchorMax.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3259285889726014650, guid: 5713b959e3c77a58fb258133fc8e4aef,
         type: 3}
