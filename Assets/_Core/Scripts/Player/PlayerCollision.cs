@@ -4,14 +4,21 @@ using UnityEngine;
 [RequireComponent(typeof(CharacterController))]
 public class PlayerCollision : MonoBehaviour
 {
+    [Header("Death")]
     public string obstacleTag = "Obstacle";
     public bool debugLogs = true;
 
-    [Header("Ceiling ignore while flying")]
+    [Header("Ceiling ignore while flying (IMPORTANT)")]
+    [Tooltip("Fly 중 천장으로 판정되는 충돌은 IgnoreCollision으로 끊어버립니다.")]
+    public bool ignoreCeilingWhileFlying = true;
+
+    [Tooltip("천장 레이어 마스크 (Ceiling_Collider는 반드시 Ceiling 레이어여야 함)")]
+    public LayerMask ceilingLayerMask;
+
     [Tooltip("hit.normal.y가 이 값보다 작으면(대개 -1 근처) 천장으로 보고 무시합니다.")]
     public float ceilingNormalThreshold = -0.5f;
 
-    [Tooltip("콜라이더 이름에 이 문자열이 포함되면 천장으로 보고 무시합니다.")]
+    [Tooltip("콜라이더 이름에 이 문자열이 포함되면 천장으로 보고 무시합니다(보조).")]
     public string ceilingNameContains = "Ceiling";
 
     private bool dead = false;
@@ -19,11 +26,17 @@ public class PlayerCollision : MonoBehaviour
     private CharacterController cc;
 
     private bool wasFlying = false;
+
+    // Fly 중 Ignore 해둔 collider 목록
     private readonly HashSet<Collider> ignoredWhileFlying = new HashSet<Collider>();
+
+    // CharacterController는 Collider 취급 가능하지만, 혹시 모를 경우 대비해서 캐시
+    private Collider ccCollider;
 
     void Awake()
     {
         cc = GetComponent<CharacterController>();
+        ccCollider = GetComponent<Collider>(); // CharacterController가 붙으면 보통 Collider로 취급됨
 
         motor = GetComponent<PlayerMotor>();
         if (motor == null) motor = GetComponentInParent<PlayerMotor>();
@@ -36,7 +49,7 @@ public class PlayerCollision : MonoBehaviour
     {
         bool flying = (motor != null && motor.IsFlying);
 
-        // 비행이 끝났으면, 비행 중 무시했던 충돌을 전부 원복
+        // ✅ 비행이 끝났으면, 즉시 원복
         if (wasFlying && !flying)
         {
             RestoreIgnoredCollisions();
@@ -47,35 +60,94 @@ public class PlayerCollision : MonoBehaviour
 
     void OnDisable()
     {
-        // 씬 전환/비활성화 시에도 원복 안전장치
+        RestoreIgnoredCollisions();
+    }
+
+    void OnDestroy()
+    {
         RestoreIgnoredCollisions();
     }
 
     void RestoreIgnoredCollisions()
     {
+        if (!ignoreCeilingWhileFlying) return;
+
+        // CharacterController(Collider) 없으면 복구 불가
         if (cc == null) return;
+        if (ignoredWhileFlying.Count == 0) return;
+
+        // cc 자체를 Collider로 쓸 수 있으면 그걸 사용, 아니면 cc를 Collider로 캐스팅 시도
+        Collider myCol = ccCollider != null ? ccCollider : cc as Collider;
 
         foreach (var col in ignoredWhileFlying)
         {
-            if (col != null)
-                Physics.IgnoreCollision(cc, col, false);
+            if (col == null) continue;
+
+            // IgnoreCollision 해제
+            if (myCol != null)
+                Physics.IgnoreCollision(myCol, col, false);
+            else
+                Physics.IgnoreCollision(cc, col, false); // Unity에서 허용되는 경우가 많음
         }
+
         ignoredWhileFlying.Clear();
+
+        if (debugLogs)
+            Debug.Log("[FlyIgnore] RestoreIgnoredCollisions: cleared");
+    }
+
+    bool IsCeilingCollider(Collider col)
+    {
+        if (col == null) return false;
+
+        // 1) 레이어 마스크로 1차 판정 (가장 확실)
+        if (ceilingLayerMask.value != 0)
+        {
+            int layerBit = 1 << col.gameObject.layer;
+            if ((ceilingLayerMask.value & layerBit) != 0)
+                return true;
+        }
+
+        // 2) 이름 포함으로 보조 판정
+        if (!string.IsNullOrEmpty(ceilingNameContains) && col.name.Contains(ceilingNameContains))
+            return true;
+
+        return false;
     }
 
     bool IsCeilingHit(ControllerColliderHit hit)
     {
         if (hit == null || hit.collider == null) return false;
 
-        // 1) 법선으로 판정: 아래에서 위를 치면 normal.y가 -1 쪽으로 떨어짐
-        if (hit.normal.y <= ceilingNormalThreshold) return true;
+        // 레이어/이름 기반 우선 판정
+        if (IsCeilingCollider(hit.collider))
+            return true;
 
-        // 2) 이름 포함으로 보조 판정
-        if (!string.IsNullOrEmpty(ceilingNameContains) &&
-            hit.collider.name.Contains(ceilingNameContains))
+        // 3) 법선으로 추가 판정: 아래에서 위를 치면 normal.y가 -1 쪽
+        if (hit.normal.y <= ceilingNormalThreshold)
             return true;
 
         return false;
+    }
+
+    void IgnoreCeilingCollision(Collider col)
+    {
+        if (!ignoreCeilingWhileFlying) return;
+        if (cc == null || col == null) return;
+
+        if (ignoredWhileFlying.Contains(col)) return;
+
+        Collider myCol = ccCollider != null ? ccCollider : cc as Collider;
+
+        if (myCol != null)
+            Physics.IgnoreCollision(myCol, col, true);
+        else
+            Physics.IgnoreCollision(cc, col, true);
+
+        ignoredWhileFlying.Add(col);
+
+        if (debugLogs)
+            Debug.Log($"[FlyIgnore] IgnoreCollision ON -> name={col.name} layer={LayerMask.LayerToName(col.gameObject.layer)}");
     }
 
     void OnControllerColliderHit(ControllerColliderHit hit)
@@ -83,36 +155,35 @@ public class PlayerCollision : MonoBehaviour
         if (dead) return;
         if (GameManager.I == null) return;
         if (GameManager.I.State != GameState.Playing) return;
+        if (hit == null || hit.collider == null) return;
 
         bool flying = (motor != null && motor.IsFlying);
 
-        if (debugLogs && hit != null && hit.collider != null)
+        if (debugLogs)
         {
-            Debug.Log($"[Hit] flying={flying} hit={hit.collider.name} tag={hit.collider.tag} layer={LayerMask.LayerToName(hit.collider.gameObject.layer)} normal={hit.normal}");
+            var go = hit.collider.gameObject;
+            Debug.Log($"[Hit] flying={flying} name={go.name} layerName={LayerMask.LayerToName(go.layer)} layerIndex={go.layer} tag={hit.collider.tag} normal={hit.normal}");
         }
 
-        // Fly 중이면:
-        // - "천장"으로 판정되는 충돌은 아예 IgnoreCollision 걸어서 스팸 히트/밀림을 끊는다.
-        // - 장애물 판정은 기존대로 무시(flying이면 죽지 않게)
+        // ✅ Fly 중이면 천장 충돌은 끊고, 나머지는 죽지 않게 그냥 return
         if (flying)
         {
-            if (cc != null && hit != null && hit.collider != null && IsCeilingHit(hit))
+            if (IsCeilingHit(hit))
             {
-                if (!ignoredWhileFlying.Contains(hit.collider))
-                {
-                    Physics.IgnoreCollision(cc, hit.collider, true);
-                    ignoredWhileFlying.Add(hit.collider);
-
-                    if (debugLogs)
-                        Debug.Log($"[FlyIgnore] IgnoreCollision ON -> {hit.collider.name}");
-                }
+                IgnoreCeilingCollision(hit.collider);
             }
             return;
         }
 
         // Fly 아닐 때만 장애물 태그로 사망 처리
-        if (hit.collider != null && hit.collider.CompareTag(obstacleTag))
+        if (hit.collider.CompareTag(obstacleTag))
         {
+            // ✅ 착지 직후 무적 시간
+            if (Time.time < PlayerMotor.SafeUntilTime)
+            {
+                if (debugLogs) Debug.Log($"[Safe] ignore obstacle hit until {PlayerMotor.SafeUntilTime:F2}");
+                return;
+            }
             dead = true;
             GameManager.I.GameOver(GameOverReason.HitObstacle);
         }

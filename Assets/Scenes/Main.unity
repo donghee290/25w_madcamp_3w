@@ -565,7 +565,7 @@ MonoBehaviour:
   spawnY: 1.6
   spawnAheadZ: 22
   wingsCheckInterval: 8
-  wingsChance: 0.07
+  wingsChance: 0.527
   bananaCheckInterval: 6
   bananaChance: 0.654
   enableBananaDropVisual: 1
@@ -808,6 +808,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   obstacleTag: Obstacle
   debugLogs: 1
+  ignoreCeilingWhileFlying: 1
+  ceilingLayerMask:
+    serializedVersion: 2
+    m_Bits: 512
   ceilingNormalThreshold: -0.5
   ceilingNameContains: Ceiling
 --- !u!114 &696068148
@@ -836,28 +840,32 @@ MonoBehaviour:
   stopSpeed: 0
   speedLerp: 8
   forwardSpeed: 6
-  jumpHeight: 2.7
-  gravity: -15
+  jumpHeight: 5
+  gravity: -12
+  fallGravityMultiplier: 2
   normalHeight: 2
   slideHeight: 0.9
   slideLerp: 20
   groundRayLength: 1.2
   groundRayStartUp: 0.2
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 0
   coyoteTime: 0.12
   flyLiftY: 2.4
   flyUpSpeed: 6
   flyDownSpeed: 10
   flyMaxUpPerFrame: 0.25
   flyGroundProbe: 3
-  flyImmediateStepY: 1.2
+  flyCeilingMargin: 0.35
   flyGraceSec: 0.6
   obstacleMask:
     serializedVersion: 2
     m_Bits: 0
   flyStepOffset: 0.05
+  groundProbeMask:
+    serializedVersion: 2
+    m_Bits: 1
+  ceilingMask:
+    serializedVersion: 2
+    m_Bits: 512
   debugLogs: 1
 --- !u!143 &696068149
 CharacterController:
@@ -1526,7 +1534,7 @@ MonoBehaviour:
   spawnChanceStage2: 0.8
   spawnChanceStage3: 0.75
   singleOnly: 1
-  minObstacleGapZ: 10
+  minObstacleGapZ: 20
   zBlockRange: 2
   laneBlockHalfWidth: 0.55
   maxSpawnTries: 10
@@ -4854,3 +4862,5 @@ SceneRoots:
   - {fileID: 64336492}
   - {fileID: 1039562791}
   - {fileID: 248894556}
+  - {fileID: 1975597246}
+  - {fileID: 523918931}
