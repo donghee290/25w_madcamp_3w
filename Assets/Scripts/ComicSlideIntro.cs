@@ -25,18 +25,16 @@ public class ComicSlideIntro : MonoBehaviour
     public Vector2 finalPos3;
 
     [Header("Slide")]
-    public float slideDuration = 0.55f;      // 더 길게 해서 '움직임'이 잘 보이게
-    public float gapDelay = 0.12f;
+    public float slideDuration = 0.55f;
+    public float gapDelay = 0.20f;
     public AnimationCurve slideEase = null;
 
     [Header("Cartoon Push (Overshoot)")]
-    public float overshootPx = 90f;     // 목표를 얼마나 넘길지(px)
-    public float settleDuration = 0.10f; // 넘긴 후 제자리로 돌아오는 시간
+    public float overshootPx = 90f;
+    public float settleDuration = 0.10f;
 
     [Header("Squash & Stretch")]
-    public float stretchAmount = 0.12f; // 0.1~0.18 추천 (과하면 이상함)
-    public float squashDuration = 0.12f;
-
+    public float stretchAmount = 0.12f;
 
     [Tooltip("화면 밖으로 숨길 여유 마진(px)")]
     public float offscreenMargin = 150f;
@@ -55,26 +53,27 @@ public class ComicSlideIntro : MonoBehaviour
     public AudioClip pageFlip;
     public AudioClip punch;
 
+    [Header("Scene Transition")]
+    public float sceneTransitionDelay = 2f;
+
     [Header("Next Scene")]
     public string mainSceneName = "Main";
 
     bool started = false;
-    float offscreenX; // 자동 계산
+    float offscreenX;
     Vector2 shakeOrigin;
 
     void Awake()
     {
         if (slideEase == null) slideEase = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
-        // 시작 시 흰배경 OFF
         if (whiteBG != null) whiteBG.SetActive(false);
 
-        // ✅ 시작 시 패널은 아예 꺼두기 (플래시 방지)
+        // ✅ 시작 시 패널은 꺼둠 (원하던 동작)
         if (panel1 != null) panel1.gameObject.SetActive(false);
         if (panel2 != null) panel2.gameObject.SetActive(false);
         if (panel3 != null) panel3.gameObject.SetActive(false);
 
-        // 흔들림 원점 저장
         if (shakeTarget != null) shakeOrigin = shakeTarget.anchoredPosition;
 
         // offscreenX 자동 계산 (현재 루트 폭 기준)
@@ -95,16 +94,12 @@ public class ComicSlideIntro : MonoBehaviour
         return null;
     }
 
-    void HidePanels()
+    // ✅ 패널을 "활성화 직후" 오프스크린 위치로 세팅
+    void PrepPanel(RectTransform panel, Vector2 finalPos, float sideSign)
     {
-        // ✅ 켠 직후 바로 화면 밖으로 보내기
-        if (panel1 != null) panel1.anchoredPosition = new Vector2(+offscreenX, finalPos1.y);
-        if (panel2 != null) panel2.anchoredPosition = new Vector2(-offscreenX, finalPos2.y);
-        if (panel3 != null) panel3.anchoredPosition = new Vector2(+offscreenX, finalPos3.y);
-
-        if (panel1 != null) panel1.localScale = Vector3.one;
-        if (panel2 != null) panel2.localScale = Vector3.one;
-        if (panel3 != null) panel3.localScale = Vector3.one;
+        if (panel == null) return;
+        panel.anchoredPosition = new Vector2(offscreenX * sideSign, finalPos.y);
+        panel.localScale = Vector3.one;
     }
 
     public void Play()
@@ -112,36 +107,44 @@ public class ComicSlideIntro : MonoBehaviour
         if (started) return;
         started = true;
 
-        // 시작 UI 숨김
         if (startUIRoot != null) startUIRoot.SetActive(false);
-
-        // 흰 배경 켬 (패널 나오기 직전)
         if (whiteBG != null) whiteBG.SetActive(true);
 
-        // 중복 탭 방지
         if (fullscreenButton != null) fullscreenButton.interactable = false;
-
-        // ✅ 이제 여기서 패널을 켠다
-        if (panel1 != null) panel1.gameObject.SetActive(true);
-        if (panel2 != null) panel2.gameObject.SetActive(true);
-        if (panel3 != null) panel3.gameObject.SetActive(true);
-
-        // ✅ 켜자마자 오프스크린 위치로 강제 세팅 (플래시 방지)
-        HidePanels();
 
         StartCoroutine(Sequence());
     }
 
     IEnumerator Sequence()
     {
+        // panel1 (오른쪽 -> 중앙)
+        if (panel1 != null)
+        {
+            panel1.gameObject.SetActive(true);
+            PrepPanel(panel1, finalPos1, +1f);
+        }
         yield return SlideInWithFX(panel1, finalPos1, isPunch: false);
         yield return new WaitForSeconds(gapDelay);
 
+        // panel2 (왼쪽 -> 중앙)
+        if (panel2 != null)
+        {
+            panel2.gameObject.SetActive(true);
+            PrepPanel(panel2, finalPos2, -1f);
+        }
         yield return SlideInWithFX(panel2, finalPos2, isPunch: true);
         yield return new WaitForSeconds(gapDelay);
 
+        // panel3 (오른쪽 -> 중앙)
+        if (panel3 != null)
+        {
+            panel3.gameObject.SetActive(true);
+            PrepPanel(panel3, finalPos3, +1f);
+        }
         yield return SlideInWithFX(panel3, finalPos3, isPunch: false);
 
+        // ✅ 애니메이션 다 끝나고 2초 대기 후 씬 전환
+        yield return new WaitForSeconds(sceneTransitionDelay);
         SceneManager.LoadScene(mainSceneName);
     }
 
@@ -149,17 +152,12 @@ public class ComicSlideIntro : MonoBehaviour
     {
         if (panel == null) yield break;
 
-        // 들어올 때 page flip
         PlaySfx(pageFlip);
-
-        // 슬라이드
         yield return SlideTo(panel, finalPos);
 
-        // 도착 순간: 툭! (shake + punch)
         if (isPunch) PlaySfx(punch);
         yield return StartCoroutine(Shake());
 
-        // 살짝 팝(1.05 -> 1.0)
         yield return StartCoroutine(Pop(panel));
     }
 
@@ -167,40 +165,33 @@ public class ComicSlideIntro : MonoBehaviour
     {
         Vector2 start = rt.anchoredPosition;
 
-        // 들어오는 방향(+1 오른쪽->왼쪽, -1 왼쪽->오른쪽)
         float dir = Mathf.Sign(target.x - start.x);
         if (dir == 0) dir = 1f;
 
-        // 1) 목표보다 살짝 "넘어가는" 위치
         Vector2 overshootTarget = new Vector2(target.x + (overshootPx * dir), target.y);
 
-        // --- Phase A: 빠르게 밀고 들어오며(오버슈트까지) 스쿼시/스트레치 ---
+        // Phase A: 오버슈트까지 이동
         float t = 0f;
         while (t < slideDuration)
         {
             t += Time.deltaTime;
-
             float u = Mathf.Clamp01(t / slideDuration);
 
-            // 카툰 느낌: 초반이 더 빠르게(가속 강하게) -> 끝에서 확 멈춤
-            // EaseInOut보다 "EaseOutExpo" 같은 느낌을 직접 만듦
-            float k = 1f - Mathf.Pow(1f - u, 4f);
+            // ✅ 더 느리고 부드럽게: 4f -> 2.4f
+            float k = 1f - Mathf.Pow(1f - u, 2.4f);
 
             rt.anchoredPosition = Vector2.Lerp(start, overshootTarget, k);
 
-            // 스쿼시 & 스트레치 (이동 방향으로 길쭉/높이 납작)
-            // u 초반~중반에만 적용되게 사인 곡선으로
+            // Squash & Stretch
             float s = Mathf.Sin(u * Mathf.PI);
             float stretch = 1f + (stretchAmount * s);
             float squash = 1f - (stretchAmount * 0.6f * s);
-
-            // x축 이동이면 X 늘리고 Y 줄임, 반대면 그대로지만 느낌 유지
             rt.localScale = new Vector3(stretch, squash, 1f);
 
             yield return null;
         }
 
-        // --- Phase B: overshoot에서 target으로 '툭' 돌아오기 (settle) ---
+        // Phase B: 오버슈트에서 target으로 정착
         t = 0f;
         Vector2 from = rt.anchoredPosition;
         Vector3 scaleFrom = rt.localScale;
@@ -220,14 +211,6 @@ public class ComicSlideIntro : MonoBehaviour
         rt.anchoredPosition = target;
         rt.localScale = Vector3.one;
     }
-
-
-
-
-
-
-
-
 
     IEnumerator Pop(RectTransform rt)
     {
@@ -257,10 +240,8 @@ public class ComicSlideIntro : MonoBehaviour
         while (t < shakeDuration)
         {
             t += Time.deltaTime;
-
             float x = Random.Range(-shakeStrength, shakeStrength);
             float y = Random.Range(-shakeStrength, shakeStrength);
-
             shakeTarget.anchoredPosition = origin + new Vector2(x, y);
             yield return null;
         }
