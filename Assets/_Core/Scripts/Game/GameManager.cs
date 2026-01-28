@@ -77,7 +77,6 @@ public class GameManager : MonoBehaviour
         StartRunImmediate();
         // 씬 전환 시 레퍼런스 재탐색
         playerMotor = null;
-        EnsurePlayerMotor(forceLog: false);
 
         // UI도 씬마다 새로 잡는 게 안전
         topBarRoot = null;
@@ -155,7 +154,7 @@ public class GameManager : MonoBehaviour
 
         // ✅ UI 초기 상태
         if (topBarRoot != null) topBarRoot.SetActive(true);
-        if (reportPopupRoot != null) reportPopupRoot.SetActive(false);
+        if (ReportCardPopup != null) ReportCardPopup.SetActive(false);
 
         // ✅ 플레이어 활성화
         if (playerMotor != null)
@@ -245,7 +244,6 @@ public class GameManager : MonoBehaviour
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
 
-        EnsurePlayerMotor(forceLog: false);
         if (playerMotor != null)
             playerMotor.enabled = true;
 
