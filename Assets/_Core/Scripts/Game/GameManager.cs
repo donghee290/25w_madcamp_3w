@@ -21,10 +21,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GameObject topBarRoot;
 
     [Tooltip("게임오버 후 2초 뒤에 뜨는 ReportPopup 루트")]
-    [SerializeField] private GameObject reportPopupRoot;
+    [SerializeField] private GameObject ReportCardPopup;
 
     [Tooltip("ReportPopup 지연 시간(초)")]
-    [SerializeField] private float reportPopupDelay = 2f;
+    [SerializeField] private float reportPopupDelay = 5f;
 
     [Header("Comic Outro (optional)")]
     [Tooltip("Canvas/ComicOutroRoot에 붙은 ComicSlideOutro")]
@@ -79,13 +79,13 @@ public class GameManager : MonoBehaviour
 
         // UI도 씬마다 새로 잡는 게 안전
         topBarRoot = null;
-        reportPopupRoot = null;
+        ReportCardPopup = null;
         comicOutro = null; // ✅ 추가
         EnsureUIRefs();
 
         // 씬 로드 시 기본 UI 상태 정리(재시작/씬전환 시 꼬임 방지)
         if (topBarRoot != null) topBarRoot.SetActive(true);
-        if (reportPopupRoot != null) reportPopupRoot.SetActive(false);
+        if (ReportCardPopup != null) ReportCardPopup.SetActive(false);
 
         // 씬 로드시 경고 플래그 초기화(스팸 방지)
         warnedNoPlayer = false;
@@ -121,11 +121,11 @@ public class GameManager : MonoBehaviour
             if (go != null) topBarRoot = go;
         }
 
-        if (reportPopupRoot == null)
+        if (ReportCardPopup == null)
         {
             // ⚠️ 하이러키 실제 이름이 ReportCardPopup이면 여기 문자열만 바꿔주세요.
-            var go = GameObject.Find("ReportPopupRoot");
-            if (go != null) reportPopupRoot = go;
+            var go = GameObject.Find("ReportCardPopup");
+            if (go != null) ReportCardPopup = go;
         }
 
         // ✅ ComicOutroRoot에서 스크립트 찾아오기(최소 추가)
@@ -189,7 +189,7 @@ public class GameManager : MonoBehaviour
         yield return new WaitForSeconds(reportPopupDelay);
 
         EnsureUIRefs();
-        if (reportPopupRoot != null) reportPopupRoot.SetActive(true);
+        if (ReportCardPopup != null) ReportCardPopup.SetActive(true);
     }
 
     void CancelReportPopupCo()
@@ -226,7 +226,7 @@ public class GameManager : MonoBehaviour
 
         EnsureUIRefs();
         if (topBarRoot != null) topBarRoot.SetActive(true);
-        if (reportPopupRoot != null) reportPopupRoot.SetActive(false);
+        if (ReportCardPopup != null) ReportCardPopup.SetActive(false);
     }
 
     public void RestartMainScene()

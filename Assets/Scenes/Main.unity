@@ -537,8 +537,8 @@ RectTransform:
   - {fileID: 1062844677}
   - {fileID: 1537625419}
   - {fileID: 1287908106}
-  - {fileID: 1404872824}
   - {fileID: 998667535}
+  - {fileID: 1404872824}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -2003,7 +2003,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &998667535
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2256,7 +2256,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1255212204
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2347,7 +2347,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1302040923
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2364,8 +2364,8 @@ RectTransform:
   - {fileID: 786364588}
   m_Father: {fileID: 998667535}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 10}
-  m_AnchorMin: {x: 0.5, y: 1}
-  m_AnchorMax: {x: 0.5, y: 1}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 400}
   m_SizeDelta: {x: 2000, y: 900}
   m_Pivot: {x: 0.5, y: 0.5}
@@ -2582,7 +2582,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1404872824
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2869,8 +2869,8 @@ MonoBehaviour:
   distanceMeters: 0
   playerMotor: {fileID: 696068148}
   topBarRoot: {fileID: 1287908105}
-  reportPopupRoot: {fileID: 1404872823}
-  reportPopupDelay: 2
+  ReportCardPopup: {fileID: 1404872823}
+  reportPopupDelay: 3
   comicOutro: {fileID: 998667536}
   findCooldown: 1
 --- !u!4 &1502140642

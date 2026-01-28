@@ -64,7 +64,6 @@ public class ComicSlideOutro : MonoBehaviour
         float rootWidth = root != null ? root.rect.width : 1080f;
         offscreenX = (rootWidth * 0.55f) + offscreenMargin;
 
-        gameObject.SetActive(false); // 기본은 꺼두는 걸 추천(필요시 제거)
     }
 
     RectTransform GetRootRect(RectTransform rt)
@@ -106,7 +105,6 @@ public class ComicSlideOutro : MonoBehaviour
 
         if (shakeTarget != null) shakeTarget.anchoredPosition = shakeOrigin;
 
-        gameObject.SetActive(false);
     }
 
     IEnumerator Sequence()
