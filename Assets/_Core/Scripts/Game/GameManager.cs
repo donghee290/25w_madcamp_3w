@@ -17,6 +17,9 @@ public class GameManager : MonoBehaviour
     public PlayerMotor playerMotor;
     public PoseInput poseInput;
 
+    [Header("Audio (Main Scene only)")]
+    [SerializeField] private MainAudioController mainAudio;
+
     [Header("UI (optional)")]
     [Tooltip("게임오버 즉시 사라져야 하는 TopBar 루트")]
     [SerializeField] private GameObject topBarRoot;
@@ -67,30 +70,33 @@ public class GameManager : MonoBehaviour
     {
         EnsureRefs(false);
         EnsureUIRefs();
+        EnsureAudioRefs();
         StartRunImmediate();
     }
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        EnsureRefs(false);
-        EnsureUIRefs();
-        StartRunImmediate();
-        // 씬 전환 시 레퍼런스 재탐색
+        // 씬 전환 시 레퍼런스 초기화
         playerMotor = null;
+        poseInput = null;
+        mainAudio = null;
 
-        // UI도 씬마다 새로 잡는 게 안전
         topBarRoot = null;
         ReportCardPopup = null;
-        comicOutro = null; // ✅ 추가
-        EnsureUIRefs();
+        comicOutro = null;
 
-        // 씬 로드 시 기본 UI 상태 정리(재시작/씬전환 시 꼬임 방지)
-        if (topBarRoot != null) topBarRoot.SetActive(true);
-        if (ReportCardPopup != null) ReportCardPopup.SetActive(false);
-
-        // 씬 로드시 경고 플래그 초기화(스팸 방지)
         warnedNoPlayer = false;
         nextFindTime = 0f;
+
+        EnsureRefs(false);
+        EnsureUIRefs();
+        EnsureAudioRefs();
+
+        StartRunImmediate();
+
+        // UI 기본 상태
+        if (topBarRoot != null) topBarRoot.SetActive(true);
+        if (ReportCardPopup != null) ReportCardPopup.SetActive(false);
     }
 
     void EnsureRefs(bool forceLog = false)
@@ -126,42 +132,44 @@ public class GameManager : MonoBehaviour
 
         if (ReportCardPopup == null)
         {
-            // ⚠️ 하이러키 실제 이름이 ReportCardPopup이면 여기 문자열만 바꿔주세요.
             var go = GameObject.Find("ReportCardPopup");
             if (go != null) ReportCardPopup = go;
         }
 
-        // ✅ ComicOutroRoot에서 스크립트 찾아오기(최소 추가)
         if (comicOutro == null)
         {
             var go = GameObject.Find("ComicOutroRoot");
             if (go != null) comicOutro = go.GetComponent<ComicSlideOutro>();
-            if (comicOutro == null) comicOutro = FindFirstObjectByType<ComicSlideOutro>(); // 보험
+            if (comicOutro == null)
+                comicOutro = FindFirstObjectByType<ComicSlideOutro>();
         }
+    }
+
+    void EnsureAudioRefs()
+    {
+        if (mainAudio == null)
+            mainAudio = FindFirstObjectByType<MainAudioController>();
     }
 
     public void StartRunImmediate()
     {
         CancelReportPopupCo();
 
-        // ✅ 상태 초기화
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
         distanceMeters = 0f;
 
         EnsureRefs(false);
         EnsureUIRefs();
+        EnsureAudioRefs();
 
-        // ✅ UI 초기 상태
         if (topBarRoot != null) topBarRoot.SetActive(true);
         if (ReportCardPopup != null) ReportCardPopup.SetActive(false);
 
-        // ✅ 플레이어 활성화
         if (playerMotor != null)
         {
             playerMotor.enabled = true;
-            playerMotor.ForceStopToIdle(); // 시작 속도/상태 리셋
-            // 바닥에 붙이기 원하면 아래 줄 유지
+            playerMotor.ForceStopToIdle();
             playerMotor.StartOnGroundForCountdown();
         }
     }
@@ -190,23 +198,28 @@ public class GameManager : MonoBehaviour
         state = GameState.GameOver;
         gameOverReason = reason;
 
-        // 1) 즉시 TopBar 숨김
         EnsureUIRefs();
+        EnsureAudioRefs();
 
-        // TopBar 숨김
+        // ✅ BGM 종료 + fail 효과음 1회
+        if (mainAudio != null)
+        {
+            // 필요하면 이유 추가 가능
+            // ex) reason == GameOverReason.CaughtByChaser
+            if (reason == GameOverReason.HitObstacle)
+                mainAudio.OnFailOnce();
+        }
+
         if (topBarRoot != null) topBarRoot.SetActive(false);
 
-        // ✅ 1.5) reportPopup 뜨기 전까지 comicOutro 재생 (whiteBG 없음은 outro 스크립트에서 처리)
         if (comicOutro != null) comicOutro.Play();
 
-        // 플레이어 정지
         if (playerMotor != null)
         {
             playerMotor.ForceStopToIdle();
             playerMotor.enabled = false;
         }
 
-        // 2) ReportPopup은 기존대로 2초 뒤
         if (reportPopupCo != null) StopCoroutine(reportPopupCo);
         reportPopupCo = StartCoroutine(ShowReportPopupAfterDelay());
 
