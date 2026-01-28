@@ -902,16 +902,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   inputSource: {fileID: 696068152}
+  sprintBonusSpeed: 10
+  sprintBuildPerSec: 2.5
+  sprintDecayPerSec: 3.5
   anim: {fileID: 256363709}
+  debugText: {fileID: 0}
   paramMoveLevel: MoveLevel
   paramIsGrounded: IsGrounded
   paramIsFlying: IsFlying
   trigJump: Jump
   trigRoll: Roll
+  trigLand: Land
   laneWidth: 1.2
   laneMoveSpeed: 14
-  runSpeed: 10
-  walkSpeed: 6
+  minAccel: 1
+  maxAccel: 5
+  brakeAccel: 30
+  runSpeed: 15
+  walkSpeed: 5
   stopSpeed: 0
   speedLerp: 8
   forwardSpeed: 6
@@ -1013,7 +1021,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 696068143}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0c13817016e0ada44a1f421b27543f51, type: 3}
   m_Name: 
@@ -1031,12 +1039,12 @@ MonoBehaviour:
   rollFramesRequired: 2
   rollHoldSeconds: 0.1
   rollCooldown: 0.7
-  shoulderDeltaDeadzone: 0
+  shoulderDeltaDeadzone: 0.0008
   walkThreshold: 0.001
-  runThreshold: 0.003
-  energySmoothing: 20
-  moveLevelSmoothing: 10
-  moveCurve: 1.8
+  runThreshold: 0.0012
+  energySmoothing: 25
+  moveLevelSmoothing: 22
+  moveCurve: 1.2
   armsOutMinX: 0.18
   wristNearShoulderY: 0.1
   hasLandmarksDebug: 0
@@ -1439,7 +1447,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &840144362
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2120,7 +2128,7 @@ MonoBehaviour:
   spawnChanceStage2: 0.8
   spawnChanceStage3: 0.75
   singleOnly: 1
-  minObstacleGapZ: 20
+  minObstacleGapZ: 25
   zBlockRange: 2
   laneBlockHalfWidth: 0.55
   maxSpawnTries: 10
@@ -2653,12 +2661,12 @@ PrefabInstance:
     - target: {fileID: 3259285889726014650, guid: 5713b959e3c77a58fb258133fc8e4aef,
         type: 3}
       propertyPath: m_AnchorMax.x
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3259285889726014650, guid: 5713b959e3c77a58fb258133fc8e4aef,
         type: 3}
       propertyPath: m_AnchorMax.y
-      value: 1
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3259285889726014650, guid: 5713b959e3c77a58fb258133fc8e4aef,
         type: 3}
@@ -2868,6 +2876,7 @@ MonoBehaviour:
   gameOverReason: 0
   distanceMeters: 0
   playerMotor: {fileID: 696068148}
+  poseInput: {fileID: 0}
   topBarRoot: {fileID: 1287908105}
   ReportCardPopup: {fileID: 1404872823}
   reportPopupDelay: 3

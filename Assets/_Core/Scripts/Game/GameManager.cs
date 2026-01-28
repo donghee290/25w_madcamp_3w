@@ -15,6 +15,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Refs")]
     public PlayerMotor playerMotor;
+    public PoseInput poseInput;
 
     [Header("UI (optional)")]
     [Tooltip("게임오버 즉시 사라져야 하는 TopBar 루트")]
@@ -41,8 +42,6 @@ public class GameManager : MonoBehaviour
     public System.Action<GameOverReason> OnGameOverEvent;
 
     private Coroutine reportPopupCo;
-
-    // PlayerMotor 재탐색 제어
     private float nextFindTime = 0f;
     private bool warnedNoPlayer = false;
 
@@ -56,23 +55,26 @@ public class GameManager : MonoBehaviour
 
         I = this;
         DontDestroyOnLoad(gameObject);
-
         SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
     void OnDestroy()
     {
-        SceneManager.sceneLoaded -= OnSceneLoaded;
+        if (I == this) SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     void Start()
     {
-        EnsurePlayerMotor(forceLog: false);
+        EnsureRefs(false);
         EnsureUIRefs();
+        StartRunImmediate();
     }
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        EnsureRefs(false);
+        EnsureUIRefs();
+        StartRunImmediate();
         // 씬 전환 시 레퍼런스 재탐색
         playerMotor = null;
         EnsurePlayerMotor(forceLog: false);
@@ -92,11 +94,13 @@ public class GameManager : MonoBehaviour
         nextFindTime = 0f;
     }
 
-    void EnsurePlayerMotor(bool forceLog)
+    void EnsureRefs(bool forceLog = false)
     {
-        if (playerMotor != null) return;
+        if (playerMotor == null)
+            playerMotor = FindFirstObjectByType<PlayerMotor>();
 
-        playerMotor = FindFirstObjectByType<PlayerMotor>();
+        if (poseInput == null)
+            poseInput = FindFirstObjectByType<PoseInput>();
 
         if (playerMotor == null)
         {
@@ -109,7 +113,7 @@ public class GameManager : MonoBehaviour
         else
         {
             warnedNoPlayer = false;
-            Debug.Log($"[GameManager] PlayerMotor bound: {playerMotor.name}");
+            if (forceLog) Debug.Log($"[GameManager] PlayerMotor bound: {playerMotor.name}");
         }
     }
 
@@ -137,6 +141,32 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    public void StartRunImmediate()
+    {
+        CancelReportPopupCo();
+
+        // ✅ 상태 초기화
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
+        EnsureRefs(false);
+        EnsureUIRefs();
+
+        // ✅ UI 초기 상태
+        if (topBarRoot != null) topBarRoot.SetActive(true);
+        if (reportPopupRoot != null) reportPopupRoot.SetActive(false);
+
+        // ✅ 플레이어 활성화
+        if (playerMotor != null)
+        {
+            playerMotor.enabled = true;
+            playerMotor.ForceStopToIdle(); // 시작 속도/상태 리셋
+            // 바닥에 붙이기 원하면 아래 줄 유지
+            playerMotor.StartOnGroundForCountdown();
+        }
+    }
+
     void Update()
     {
         if (state != GameState.Playing) return;
@@ -146,7 +176,7 @@ public class GameManager : MonoBehaviour
             if (Time.time >= nextFindTime)
             {
                 nextFindTime = Time.time + findCooldown;
-                EnsurePlayerMotor(forceLog: false);
+                EnsureRefs(false);
             }
             return;
         }
@@ -158,13 +188,13 @@ public class GameManager : MonoBehaviour
     {
         if (state == GameState.GameOver) return;
 
-        Debug.Log("[GameManager] GameOver CALLED");
-
         state = GameState.GameOver;
         gameOverReason = reason;
 
         // 1) 즉시 TopBar 숨김
         EnsureUIRefs();
+
+        // TopBar 숨김
         if (topBarRoot != null) topBarRoot.SetActive(false);
 
         // ✅ 1.5) reportPopup 뜨기 전까지 comicOutro 재생 (whiteBG 없음은 outro 스크립트에서 처리)
@@ -187,7 +217,6 @@ public class GameManager : MonoBehaviour
     private IEnumerator ShowReportPopupAfterDelay()
     {
         yield return new WaitForSeconds(reportPopupDelay);
-
         EnsureUIRefs();
         if (ReportCardPopup != null) ReportCardPopup.SetActive(true);
     }
@@ -204,17 +233,13 @@ public class GameManager : MonoBehaviour
     public void RestartSceneSimple()
     {
         CancelReportPopupCo();
-
-        state = GameState.Playing;
-        gameOverReason = GameOverReason.HitObstacle;
-        distanceMeters = 0f;
-
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
     public void ResetRun()
     {
         CancelReportPopupCo();
+        StartRunImmediate();
 
         state = GameState.Playing;
         gameOverReason = GameOverReason.HitObstacle;
@@ -232,24 +257,13 @@ public class GameManager : MonoBehaviour
     public void RestartMainScene()
     {
         CancelReportPopupCo();
-
-        state = GameState.Playing;
-        gameOverReason = GameOverReason.HitObstacle;
-        distanceMeters = 0f;
-
         SceneManager.LoadScene("Main");
     }
 
     public void GoToStartScene()
     {
         CancelReportPopupCo();
-
-        state = GameState.Playing;
-        gameOverReason = GameOverReason.HitObstacle;
-        distanceMeters = 0f;
-
         playerMotor = null;
-
         SceneManager.LoadScene("StartScene");
     }
 }

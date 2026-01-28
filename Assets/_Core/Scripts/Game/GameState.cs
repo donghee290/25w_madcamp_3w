@@ -1,6 +1,7 @@
 public enum GameState
 {
     //Intro,
+    Countdown,
     Playing,
     GameOver
 }

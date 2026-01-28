@@ -3,46 +3,46 @@
 public class PoseInput : MonoBehaviour, IPlayerInput
 {
     public int Lane { get; private set; }            // -1,0,1
-    public bool JumpTriggered { get; private set; }  // 트리거(짧게 유지)
-    public bool RollHeld { get; private set; }       // 트리거(짧게 유지)
-    public float MoveLevel { get; private set; }     // 0~1 (연속)
-    public bool FlyForward { get; private set; }
+    public bool JumpTriggered { get; private set; }  // 트리거
+    public bool RollHeld { get; private set; }       // 홀드
+    public float MoveLevel { get; private set; }     // 0~1
+    public bool FlyForward { get; private set; }     // ✅ 추가 유지
 
-    /* ================= LANE (Body Left/Right) ================= */
+    /* ================= LANE ================= */
     [Header("Lane (Body Left/Right)")]
     public float laneDeadZone = 0.06f;
-    public float laneStrongThreshold = 0.06f;
-    public float laneHoldSeconds = 0.001f;
+    public float laneStrongThreshold = 0.16f;
+    public float laneHoldSeconds = 0.10f;
     public bool mirrorX = false;
 
-    /* ================= JUMP (Hands Up) ================= */
+    /* ================= JUMP ================= */
     [Header("Jump (Hands Up)")]
     public float handsUpMargin = 0.03f;
     public float jumpCooldown = 0.6f;
     public int handsUpFramesRequired = 2;
     public float jumpHoldSeconds = 0.12f;
 
-    /* ================= ROLL (Bend + Hands Below Hip) ================= */
+    /* ================= ROLL ================= */
     [Header("Roll (Bend + Hands Below Hip)")]
-    public float wristBelowHipMargin = 0.02f;
-    public float torsoCloseThreshold = 0.3f;
+    public float wristBelowHipMargin = 0.08f;
+    public float torsoCloseThreshold = 0.22f;
     public int rollFramesRequired = 2;
-    public float rollHoldSeconds = 0.1f;
-    public float rollCooldown = 0.7f;
+    public float rollHoldSeconds = 0.22f;
+    public float rollCooldown = 0.45f;
 
-    /* ================= MOVE (Shoulder Y Motion Energy) ================= */
+    /* ================= MOVE (Shoulder Y Energy) ================= */
     [Header("MoveLevel 0~1 (Shoulder Y energy)")]
-    public float shoulderDeltaDeadzone = 0f;
+    public float shoulderDeltaDeadzone = 0.0008f;
     public float walkThreshold = 0.001f;
-    public float runThreshold = 0.003f;
-    public float energySmoothing = 20f;
-    public float moveLevelSmoothing = 10f;
-    public float moveCurve = 1.8f;
+    public float runThreshold = 0.0020f;
+    public float energySmoothing = 25f;
+    public float moveLevelSmoothing = 12f;
+    public float moveCurve = 1.35f;
 
-    /* ================= FLY (Arms Out Hold) ================= */
+    /* ================= FLY (Arms Out) ================= */
     [Header("Fly (Arms Out Hold)")]
-    public float armsOutMinX = 0.18f;        // 어깨 중심 기준 좌/우 벌어짐
-    public float wristNearShoulderY = 0.12f; // 손목이 어깨 Y 근처여야 함
+    public float armsOutMinX = 0.18f;        // 어깨 중심 기준 좌우 벌어짐
+    public float wristNearShoulderY = 0.12f;
 
     /* ================= Debug ================= */
     [Header("Debug")]
@@ -50,7 +50,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public float shYDebug, hipYDebug;
     public float energyDebug, rawMoveDebug;
     public float centerXDebug, dxDebug;
-    public bool handsUpDebug, rollBendDebug;
+    public bool handsUpDebug, rollBendDebug, flyDebug;
 
     /* ================= Internal ================= */
     private readonly Vector3[] _lm = new Vector3[33];
@@ -81,13 +81,12 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
     void Update()
     {
-        // Jump/Roll hold (트리거처럼)
-        if (_jumpHold > 0f) { _jumpHold -= Time.deltaTime; JumpTriggered = true; }
-        else JumpTriggered = false;
+        // ===== Trigger 유지 =====
+        JumpTriggered = _jumpHold > 0f;
+        RollHeld = _rollHold > 0f;
 
-        if (_rollHold > 0f) { _rollHold -= Time.deltaTime; RollHeld = true; }
-        else RollHeld = false;
-
+        if (_jumpHold > 0f) _jumpHold -= Time.deltaTime;
+        if (_rollHold > 0f) _rollHold -= Time.deltaTime;
         if (_jumpCd > 0f) _jumpCd -= Time.deltaTime;
         if (_rollCd > 0f) _rollCd -= Time.deltaTime;
 
@@ -95,11 +94,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         {
             Lane = 0;
             MoveLevel = 0f;
-            FlyForward = false;   // ✅ 추가: 랜드마크 없으면 fly 입력도 꺼짐
-
-            _pendingLane = 0;
-            _laneHold = 0f;
-
+            FlyForward = false;
             _hasPrevShY = false;
             _energyEma = 0f;
             return;
@@ -117,9 +112,6 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         shYDebug = shY;
         hipYDebug = hipY;
 
-        // ✅ 기본값: 매 프레임 false로 초기화 후, 조건 만족하면 true
-        FlyForward = false;
-
         /* ================= LANE ================= */
         float centerX = (lSh.x + rSh.x) * 0.5f;
         if (mirrorX) centerX = 1f - centerX;
@@ -128,11 +120,10 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         float dx = centerX - 0.5f;
         dxDebug = dx;
 
-        int laneCandidate;
-        if (dx < -laneStrongThreshold) laneCandidate = -1;
-        else if (dx > laneStrongThreshold) laneCandidate = 1;
-        else if (Mathf.Abs(dx) < laneDeadZone) laneCandidate = 0;
-        else laneCandidate = Lane;
+        int laneCandidate =
+            dx < -laneStrongThreshold ? -1 :
+            dx > laneStrongThreshold ? 1 :
+            Mathf.Abs(dx) < laneDeadZone ? 0 : Lane;
 
         if (laneCandidate != _pendingLane)
         {
@@ -146,7 +137,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
                 Lane = _pendingLane;
         }
 
-        /* ================= MOVELEVEL (continuous) ================= */
+        /* ================= MOVE ================= */
         if (!_hasPrevShY)
         {
             _prevShY = shY;
@@ -155,17 +146,16 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
         float dy = Mathf.Abs(shY - _prevShY);
         _prevShY = shY;
-
         if (dy < shoulderDeltaDeadzone) dy = 0f;
 
         float tE = 1f - Mathf.Exp(-energySmoothing * Time.deltaTime);
         _energyEma = Mathf.Lerp(_energyEma, dy, tE);
         energyDebug = _energyEma;
 
-        float raw;
-        if (_energyEma <= walkThreshold) raw = 0f;
-        else if (_energyEma >= runThreshold) raw = 1f;
-        else raw = (_energyEma - walkThreshold) / (runThreshold - walkThreshold);
+        float raw =
+            _energyEma <= walkThreshold ? 0f :
+            _energyEma >= runThreshold ? 1f :
+            (_energyEma - walkThreshold) / (runThreshold - walkThreshold);
 
         raw = Mathf.Clamp01(raw);
         raw = Mathf.Pow(raw, Mathf.Max(0.2f, moveCurve));
@@ -180,18 +170,15 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         bool handsUp =
             (lWr.y < lSh.y - handsUpMargin) &&
             (rWr.y < rSh.y - handsUpMargin);
-
         handsUpDebug = handsUp;
 
-        if (handsUp) _handsUpFrames++;
-        else _handsUpFrames = 0;
+        _handsUpFrames = handsUp ? _handsUpFrames + 1 : 0;
 
         if (_handsUpFrames >= handsUpFramesRequired && _jumpCd <= 0f)
         {
             _jumpHold = jumpHoldSeconds;
             _jumpCd = jumpCooldown;
             _handsUpFrames = 0;
-            Debug.Log("[PoseInput] JUMP");
         }
 
         /* ================= ROLL ================= */
@@ -199,41 +186,28 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             (lWr.y > hipY + wristBelowHipMargin) &&
             (rWr.y > hipY + wristBelowHipMargin);
 
-        float torsoGap = Mathf.Abs(shY - hipY);
-        bool torsoBent = torsoGap < torsoCloseThreshold;
-
+        bool torsoBent = Mathf.Abs(shY - hipY) < torsoCloseThreshold;
         rollBendDebug = wristsBelowHip && torsoBent;
 
-        if (rollBendDebug && _rollCd <= 0f) _rollFrames++;
-        else _rollFrames = 0;
+        _rollFrames = (rollBendDebug && _rollCd <= 0f) ? _rollFrames + 1 : 0;
 
         if (_rollFrames >= rollFramesRequired && _rollCd <= 0f)
         {
             _rollHold = rollHoldSeconds;
             _rollCd = rollCooldown;
             _rollFrames = 0;
-            Debug.Log("[PoseInput] ROLL");
         }
 
-        /* ================= FLY (ARMS OUT HOLD) ================= */
-        // 목표: "양 팔을 옆으로 벌린 자세"를 유지하면 FlyForward=true
-        // 주의: 실제 비행 진입은 아이템 로직(PlayerMotor.SetFlying/StartFlyingImmediate)에서만 됨.
-        // 여기선 입력 신호(FlyForward)만 제공.
+        /* ================= FLY ================= */
         float shCenterX = (lSh.x + rSh.x) * 0.5f;
+        if (mirrorX) shCenterX = 1f - shCenterX;
 
-        if (mirrorX)
-        {
-            // mirrorX면 x축이 뒤집혀 들어오므로 손목도 같은 기준으로 판단
-            // (centerX도 mirrorX 처리했으니, shCenterX도 동일 처리)
-            shCenterX = 1f - shCenterX;
-        }
-
-        bool armsOut =
+        FlyForward =
             (lWr.x < shCenterX - armsOutMinX) &&
             (rWr.x > shCenterX + armsOutMinX) &&
             (Mathf.Abs(lWr.y - lSh.y) < wristNearShoulderY) &&
             (Mathf.Abs(rWr.y - rSh.y) < wristNearShoulderY);
 
-        FlyForward = armsOut;
+        flyDebug = FlyForward;
     }
 }
