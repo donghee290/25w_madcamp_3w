@@ -19,6 +19,8 @@ public class GameManager : MonoBehaviour
     public GameOverReason Reason => gameOverReason;
     public float DistanceMeters => distanceMeters;
 
+    public System.Action<GameOverReason> OnGameOverEvent;
+
 /*
     public void BeginRun()
     {
@@ -89,7 +91,7 @@ public class GameManager : MonoBehaviour
             playerMotor.enabled = false;
         }
 
-        Debug.Log($"[GameManager] GAME OVER: {reason}, distance={distanceMeters:0.0}m");
+        OnGameOverEvent?.Invoke(reason);
     }
 
     public void RestartSceneSimple()
@@ -111,4 +113,14 @@ public class GameManager : MonoBehaviour
         if (playerMotor != null)
             playerMotor.enabled = true;
     }
+
+    public void RestartMainScene()
+    {
+        state = GameState.Playing;
+        gameOverReason = GameOverReason.HitObstacle;
+        distanceMeters = 0f;
+
+        SceneManager.LoadScene("Main");
+    }
+
 }
