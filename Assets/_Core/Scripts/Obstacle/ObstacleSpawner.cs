@@ -224,4 +224,75 @@ public class ObstacleSpawner : MonoBehaviour
         if (rollPrefabs != null && rollPrefabs.Length > 0) return rollPrefabs[0];
         return null;
     }
+
+    GameObject RandomSingleLaneMovePrefab()
+    {
+        if (movePrefabs == null) return null;
+
+        // span==1만 후보
+        var candidates = new System.Collections.Generic.List<GameObject>();
+        foreach (var p in movePrefabs)
+        {
+            if (p == null) continue;
+            var m = p.GetComponent<ObstacleMarker>();
+            int span = (m != null) ? m.laneSpan : 1;
+            if (span == 1) candidates.Add(p);
+        }
+        if (candidates.Count == 0) return null;
+        return candidates[Random.Range(0, candidates.Count)];
+    }
+
+    void Spawn(GameObject prefab, int lane)
+    {
+        if (prefab == null) return;
+
+        var marker = prefab.GetComponent<ObstacleMarker>();
+        int span = (marker != null) ? Mathf.Clamp(marker.laneSpan, 1, 3) : 1;
+
+        // span에 따른 lane/x 결정
+        float x;
+        if (span == 3)
+        {
+            lane = 0;
+            x = 0f;
+        }
+        else if (span == 2)
+        {
+            // (-1,0) 또는 (0,1) 페어만 가능
+            lane = (Random.value < 0.5f) ? -1 : 0;
+            float centerLane = (lane == -1) ? -0.5f : 0.5f;
+            x = centerLane * laneWidth;
+        }
+        else
+        {
+            // span == 1
+            x = lane * laneWidth;
+        }
+
+        float z = player.position.z + spawnZOffset;
+
+        // 타입 기준으로 Y 결정
+        float y;
+        if (marker != null && marker.type == ObstacleType.Jump) y = deskWorldY;
+        else if (marker != null && marker.type == ObstacleType.Roll) y = bannerWorldY;
+        else y = lockerWorldY;
+
+        Vector3 pos = new Vector3(x, y, z);
+        GameObject go = Instantiate(prefab, pos, prefab.transform.rotation);
+        go.name = $"{prefab.name}_span{span}_lane{lane}_{(int)t}s";
+    }
+
+    void CleanupOldObstacles()
+    {
+        float destroyZ = player.position.z - cleanupBehindZ;
+
+        // "Obstacle" 태그에 의존하지 않고, 씬 전체에서 ObstacleMarker 가진 것만 정리
+        var markers = GameObject.FindObjectsOfType<ObstacleMarker>();
+        foreach (var m in markers)
+        {
+            if (m != null && m.transform.position.z < destroyZ)
+                Destroy(m.gameObject);
+        }
+    }
+
 }

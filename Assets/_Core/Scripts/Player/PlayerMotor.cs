@@ -318,6 +318,11 @@ public class PlayerMotor : MonoBehaviour
                 anim.SetTrigger(trigJump);
         }
 
+        if (Time.frameCount % 30 == 0)
+            Debug.Log($"[Motor] grounded={cc.isGrounded}");
+
+
+
         // 레인 이동
         int lane = Mathf.Clamp(input.Lane, -1, 1);
         float targetX = lane * laneWidth;
@@ -401,6 +406,10 @@ public class PlayerMotor : MonoBehaviour
             float targetY = hitGround ? (gy + flyLiftY) : transform.position.y;
             Debug.Log($"[FLY] y={transform.position.y:F2} groundY={(hitGround ? gy : -999f):F2} lift={flyLiftY:F2} targetY={targetY:F2} ccCenterY={cc.center.y:F2} ccH={cc.height:F2}");
         }
+
+        if (Time.frameCount % 30 == 0 && input != null)
+            Debug.Log($"jump={input.JumpTriggered}, roll={input.RollHeld}");
+
 
         // 애니 파라미터
         if (anim != null)
