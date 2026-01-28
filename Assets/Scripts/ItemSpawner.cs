@@ -13,6 +13,7 @@ public class ItemSpawner : MonoBehaviour
 
     [Header("Refs")]
     public Transform player;
+    public SpawnsRoot spawnsRoot; // 추가
 
     [Header("Lane")]
     public float laneWidth = 1.2f;
@@ -34,10 +35,17 @@ public class ItemSpawner : MonoBehaviour
     float wingsT;
     float bananaT;
 
+    void Start()
+    {
+        if (spawnsRoot == null) spawnsRoot = FindFirstObjectByType<SpawnsRoot>();
+        if (spawnsRoot != null && spawnsRoot.player == null && player != null) spawnsRoot.player = player;
+    }
+
     void Update()
     {
         if (player == null) return;
         if (GameManager.I != null && GameManager.I.State != GameState.Playing) return;
+        if (spawnsRoot == null) return;
 
         // Wings
         if (wingsPrefab != null)
@@ -80,6 +88,6 @@ public class ItemSpawner : MonoBehaviour
         float x = lane * laneWidth;
 
         Vector3 pos = new Vector3(x, spawnY, player.position.z + spawnAheadZ);
-        return Instantiate(prefab, pos, Quaternion.identity);
+        return spawnsRoot.SpawnItem(prefab, pos, Quaternion.identity);
     }
 }

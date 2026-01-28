@@ -19,6 +19,12 @@ public class GameManager : MonoBehaviour
     public GameOverReason Reason => gameOverReason;
     public float DistanceMeters => distanceMeters;
 
+/*
+    public void BeginRun()
+    {
+        state = GameState.Playing;
+    }
+*/
     void Awake()
     {
         if (I != null && I != this)

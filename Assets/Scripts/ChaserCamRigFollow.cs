@@ -3,32 +3,32 @@ using UnityEngine;
 public class ChaserCamRigFollow : MonoBehaviour
 {
     [Header("Refs")]
-    public Transform target;              // ChaserRoot(Granny)
-    public Transform lookTarget;          // PlayerRoot
-    public ChaserSystem chaserSystem;
-
-    [Tooltip("실제로 켜고/끄고 싶은 카메라 오브젝트(예: ChaserCam)")]
-    public GameObject camObj;
+    public Transform target;          // ChaserRoot
+    public ChaserSystem chaserSystem; // 바나나/거리 상태
+    public GameObject camObj;         // ChaserCam
 
     [Header("Follow")]
     public Vector3 localOffset = new Vector3(0f, 1.8f, 2.0f);
-    public float lookHeight = 1.5f;
     public float followSharpness = 12f;
 
-    [Header("Enable Conditions")]
-    public float dangerDistanceThreshold = 0.5f;
+    [Header("Look (Chaser-based)")]
+    [Tooltip("Chaser를 바라볼 때 위로 올리는 높이")]
+    public float lookHeightFromTarget = 1.5f;
 
-    [Tooltip("조건이 꺼져도 이 시간만큼은 카메라를 유지(깜빡임 방지)")]
-    public float minOnTime = 0.35f;
-
-    float onUntilTime;
+    [Header("Danger")]
+    [Range(0f, 1f)]
+    public float dangerThreshold = 0.5f;
 
     void Awake()
+    {
+        BindRefsIfNeeded();
+    }
+
+    void BindRefsIfNeeded()
     {
         if (chaserSystem == null)
             chaserSystem = FindFirstObjectByType<ChaserSystem>();
 
-        // camObj 미지정이면 자기/자식에서 Camera 찾아서 그 GO를 잡음
         if (camObj == null)
         {
             var cam = GetComponentInChildren<Camera>(true);
@@ -40,38 +40,51 @@ public class ChaserCamRigFollow : MonoBehaviour
     {
         if (!target) return;
 
-        // 1) 켜야 하는지 판단
+        // 씬 재로드/비활성화 등으로 참조 끊기는 케이스 방어
+        if (chaserSystem == null) BindRefsIfNeeded();
+
+        // =========================
+        // 1) Follow (position)
+        // =========================
+        Vector3 desiredPos =
+            target.position
+            + target.right * localOffset.x
+            + Vector3.up * localOffset.y
+            + target.forward * localOffset.z;
+
+        float t = 1f - Mathf.Exp(-followSharpness * Time.deltaTime);
+        transform.position = Vector3.Lerp(transform.position, desiredPos, t);
+
+        // =========================
+        // 2) Rotation: lookTarget 제거 (Chaser만 봄)
+        // =========================
+        Vector3 lookAt = target.position + Vector3.up * lookHeightFromTarget;
+
+        Vector3 dir = lookAt - transform.position;
+        if (dir.sqrMagnitude > 0.0001f)
+        {
+            Quaternion desiredRot = Quaternion.LookRotation(dir.normalized, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, desiredRot, t);
+        }
+
+        // =========================
+        // 3) Camera ON 조건
+        // =========================
         bool nearDanger = false;
         bool bananaEvent = false;
 
         if (chaserSystem != null)
         {
-            nearDanger = chaserSystem.chaserDistance <= dangerDistanceThreshold;
-            bananaEvent = chaserSystem.IsBananaStunned; // 바나나 스턴 동안도
+            float danger01 = 1f - Mathf.Clamp01(chaserSystem.chaserDistance / chaserSystem.maxDistance);
+            nearDanger = danger01 >= dangerThreshold;
+
+            // 바나나 스턴 중이면 무조건 ON
+            bananaEvent = chaserSystem.IsBananaStunned;
         }
 
-        bool shouldOn = nearDanger || bananaEvent;
+        bool camOn = nearDanger || bananaEvent;
 
-        // 깜빡임 방지
-        if (shouldOn) onUntilTime = Time.time + minOnTime;
-        bool finalOn = Time.time <= onUntilTime;
-
-        // 2) 카메라만 토글
-        if (camObj != null && camObj.activeSelf != finalOn)
-            camObj.SetActive(finalOn);
-
-        // 3) 리그는 항상 따라가게(카메라 꺼져도 위치는 갱신해둠)
-        Vector3 desiredPos = target.position
-                             + target.right * localOffset.x
-                             + Vector3.up * localOffset.y
-                             + target.forward * localOffset.z;
-
-        float t = 1f - Mathf.Exp(-followSharpness * Time.deltaTime);
-        transform.position = Vector3.Lerp(transform.position, desiredPos, t);
-
-        Transform lt = lookTarget ? lookTarget : target;
-        Vector3 lookAt = lt.position + Vector3.up * lookHeight;
-        Quaternion desiredRot = Quaternion.LookRotation((lookAt - transform.position).normalized, Vector3.up);
-        transform.rotation = Quaternion.Slerp(transform.rotation, desiredRot, t);
+        if (camObj != null && camObj.activeSelf != camOn)
+            camObj.SetActive(camOn);
     }
 }

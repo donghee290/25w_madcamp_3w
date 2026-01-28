@@ -8,12 +8,11 @@ public class PoseInput : MonoBehaviour, IPlayerInput
     public float MoveLevel { get; private set; }     // 0~1 (연속)
     public bool FlyForward { get; private set; }
 
-
     /* ================= LANE (Body Left/Right) ================= */
     [Header("Lane (Body Left/Right)")]
     public float laneDeadZone = 0.06f;
-    public float laneStrongThreshold = 0.16f;
-    public float laneHoldSeconds = 0.10f;
+    public float laneStrongThreshold = 0.06f;
+    public float laneHoldSeconds = 0.001f;
     public bool mirrorX = false;
 
     /* ================= JUMP (Hands Up) ================= */
@@ -25,20 +24,25 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
     /* ================= ROLL (Bend + Hands Below Hip) ================= */
     [Header("Roll (Bend + Hands Below Hip)")]
-    public float wristBelowHipMargin = 0.08f;
-    public float torsoCloseThreshold = 0.22f;
+    public float wristBelowHipMargin = 0.02f;
+    public float torsoCloseThreshold = 0.3f;
     public int rollFramesRequired = 2;
-    public float rollHoldSeconds = 0.22f;   // 달릴 때도 확실히 잡히게 약간 늘림
-    public float rollCooldown = 0.45f;      // 너무 길면 답답해서 줄임
+    public float rollHoldSeconds = 0.1f;
+    public float rollCooldown = 0.7f;
 
     /* ================= MOVE (Shoulder Y Motion Energy) ================= */
     [Header("MoveLevel 0~1 (Shoulder Y energy)")]
-    public float shoulderDeltaDeadzone = 0.0008f;
-    public float walkThreshold = 0.001f;      // 0 근처
-    public float runThreshold = 0.0020f;     // RUN 쉽게(낮을수록 쉬움)
-    public float energySmoothing = 25f;
-    public float moveLevelSmoothing = 12f;
-    public float moveCurve = 1.35f;           // 작을수록 상단(달리기) 빨리 붙음
+    public float shoulderDeltaDeadzone = 0f;
+    public float walkThreshold = 0.001f;
+    public float runThreshold = 0.003f;
+    public float energySmoothing = 20f;
+    public float moveLevelSmoothing = 10f;
+    public float moveCurve = 1.8f;
+
+    /* ================= FLY (Arms Out Hold) ================= */
+    [Header("Fly (Arms Out Hold)")]
+    public float armsOutMinX = 0.18f;        // 어깨 중심 기준 좌/우 벌어짐
+    public float wristNearShoulderY = 0.12f; // 손목이 어깨 Y 근처여야 함
 
     /* ================= Debug ================= */
     [Header("Debug")]
@@ -91,6 +95,7 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         {
             Lane = 0;
             MoveLevel = 0f;
+            FlyForward = false;   // ✅ 추가: 랜드마크 없으면 fly 입력도 꺼짐
 
             _pendingLane = 0;
             _laneHold = 0f;
@@ -111,6 +116,9 @@ public class PoseInput : MonoBehaviour, IPlayerInput
         float hipY = (lHip.y + rHip.y) * 0.5f;
         shYDebug = shY;
         hipYDebug = hipY;
+
+        // ✅ 기본값: 매 프레임 false로 초기화 후, 조건 만족하면 true
+        FlyForward = false;
 
         /* ================= LANE ================= */
         float centerX = (lSh.x + rSh.x) * 0.5f;
@@ -161,7 +169,6 @@ public class PoseInput : MonoBehaviour, IPlayerInput
 
         raw = Mathf.Clamp01(raw);
         raw = Mathf.Pow(raw, Mathf.Max(0.2f, moveCurve));
-        // 달리기 쉽게 상단 부스팅(원치 않으면 이 줄 삭제해도 됨)
         raw = 1f - Mathf.Pow(1f - raw, 1.5f);
 
         rawMoveDebug = raw;
@@ -207,5 +214,26 @@ public class PoseInput : MonoBehaviour, IPlayerInput
             _rollFrames = 0;
             Debug.Log("[PoseInput] ROLL");
         }
+
+        /* ================= FLY (ARMS OUT HOLD) ================= */
+        // 목표: "양 팔을 옆으로 벌린 자세"를 유지하면 FlyForward=true
+        // 주의: 실제 비행 진입은 아이템 로직(PlayerMotor.SetFlying/StartFlyingImmediate)에서만 됨.
+        // 여기선 입력 신호(FlyForward)만 제공.
+        float shCenterX = (lSh.x + rSh.x) * 0.5f;
+
+        if (mirrorX)
+        {
+            // mirrorX면 x축이 뒤집혀 들어오므로 손목도 같은 기준으로 판단
+            // (centerX도 mirrorX 처리했으니, shCenterX도 동일 처리)
+            shCenterX = 1f - shCenterX;
+        }
+
+        bool armsOut =
+            (lWr.x < shCenterX - armsOutMinX) &&
+            (rWr.x > shCenterX + armsOutMinX) &&
+            (Mathf.Abs(lWr.y - lSh.y) < wristNearShoulderY) &&
+            (Mathf.Abs(rWr.y - rSh.y) < wristNearShoulderY);
+
+        FlyForward = armsOut;
     }
 }
